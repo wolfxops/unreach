@@ -108,18 +108,28 @@ class ScanResult:
             brief = [f for f in self.findings if f.id not in {x.id for x in full}]
         else:
             full, brief = list(self.findings), []
+        profile = self.profile.to_dict()
+        if (compact or only_new) and self.delta.persisting:
+            # Repeat visit: the agent already saw the full profile; keep the essentials.
+            profile = {k: profile[k] for k in ("languages", "primary", "frameworks", "monorepo")}
         payload: dict[str, Any] = {
             "tool": "unreach",
             "version": __version__,
             "path": self.path,
             "auto_delete": False,
-            "profile": self.profile.to_dict(),
+            "profile": profile,
             "counts": self.counts(),
             "min_confidence": self.min_confidence,
             "findings": [f.to_dict() for f in full],
             "delta": self.delta.to_dict(),
             "memory": self.memory,
         }
+        if brief or only_new:
+            # Ids in persisting_brief already; do not repeat them in delta.
+            payload["delta"] = {k: v for k, v in payload["delta"].items() if k != "persisting"}
+            payload["memory"] = {
+                k: v for k, v in self.memory.items() if k in ("enabled", "runs", "open_findings", "decisions", "cache_hits", "cache_misses")
+            }
         if brief:
             payload["persisting_brief"] = [
                 {"id": f.id, "severity": f.severity, "confidence": f.confidence} for f in brief
