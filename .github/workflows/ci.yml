@@ -21,6 +21,11 @@ jobs:
       - name: Tests
         run: pytest -q
       - name: Mock scan
-        run: unreach scan fixtures/deadapp --mock
+        run: |
+          set +e
+          unreach scan fixtures/deadapp --mock
+          code=$?
+          set -e
+          test "$code" -eq 1
       - name: Docs exist
         run: test -f docs/index.html
