@@ -4,101 +4,374 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unreach — find the code your agents keep rewriting around</title>
-  <meta name="description" content="Dead-code scan for Claude, Cursor, and Codex.">
+  <meta name="description" content="Deterministic dead-code detection for 16 languages and 45 frameworks, with confidence scores, guided agent workflows, budgeted LLM triage, and long-term memory. Works in Claude Code, Cursor, and Codex.">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="site">
-      <a class="brand" href="index.html">Unreach</a>
-      <nav>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">
+        <svg class="mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="#2447f9"/><circle cx="9" cy="14" r="2.4" fill="#fff"/><circle cx="19" cy="9" r="2.4" fill="#fff"/><circle cx="19" cy="19" r="2.4" fill="#ffb4c0"/><path d="M11 13.2l5.6-3.4M11 14.8l5.6 3.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
+        Unreach
+      </a>
+      <nav class="primary">
         <a href="install.html">Install</a>
         <a href="cli.html">CLI</a>
+        <a href="languages.html">Languages</a>
+        <a href="confidence.html">Confidence</a>
+        <a href="workflow.html">Workflow</a>
+        <a href="memory.html">Memory</a>
         <a href="plugins.html">Plugins</a>
+        <a href="research.html">Research</a>
+        <a class="gh" href="https://github.com/wolfxops/unreach">GitHub</a>
       </nav>
-    </header>
+    </div>
+  </header>
 
-    <h1>Unreach</h1>
-    <p class="pitch">Find the code your agents keep rewriting around.</p>
-    <p class="ph">Dead-code scan for Claude, Cursor, and Codex.</p>
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <span class="eyebrow reveal">Dead-code intelligence for coding agents</span>
+          <h1 class="reveal d1">Find the code your agents <span>keep rewriting around.</span></h1>
+          <p class="lead reveal d2">Unreach builds a deterministic reachability graph of your repository, scores every finding with explainable confidence, and hands Claude Code, Cursor, or Codex a guided workflow — so the model spends tokens on judgement, not on rediscovering your codebase.</p>
+          <div class="btn-row reveal d3">
+            <a class="btn primary" href="install.html">Get started</a>
+            <a class="btn ghost" href="plugins.html">Add to your agent</a>
+          </div>
+          <div class="trust reveal d4">
+            <span>No LLM required to detect</span>
+            <span>Never deletes files</span>
+            <span>16 languages · 45 frameworks</span>
+            <span>Apache-2.0</span>
+          </div>
+        </div>
+        <div class="hero-art reveal d2" aria-label="Import graph with two unreachable nodes highlighted">
+          <svg viewBox="0 0 520 340" role="img">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+              <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity=".12"/></filter>
+            </defs>
+            <text x="20" y="26" font-size="12" fill="#64748b" font-family="ui-monospace, Menlo, monospace">unreach scan ./svc</text>
 
-    <section>
-      <h2>Install</h2>
-      <pre><code>pip install -e .
-unreach scan --mock</code></pre>
-      <p class="note">`--mock` needs no API keys. The scan is deterministic. The model is optional and only used for <code>unreach explain</code>.</p>
-    </section>
+            <!-- edges -->
+            <path class="draw d1" d="M112,170 C170,170 190,96 232,92" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+            <path class="draw d1" d="M112,170 L232,170" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+            <path class="draw d2" d="M112,170 C170,170 190,248 232,252" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+            <path class="draw d3" d="M300,164 L392,120" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+            <path class="flow" d="M300,178 L392,206" fill="none" stroke="#e11d48" stroke-width="2" opacity=".55"/>
 
-    <section>
-      <h2>Built around the pain points</h2>
-      <div class="grid">
-        <article class="card">
-          <h3><a href="confidence.html">Confidence score</a></h3>
-          <p>Every finding carries a deterministic <code>confidence</code> and named <code>signals</code>. Framework decorators, dynamic imports, string-named modules and config references lower it. Only ≥ 0.85 becomes <code>block</code>.</p>
-        </article>
-        <article class="card">
-          <h3><a href="workflow.html">Agentic workflow</a></h3>
-          <p><code>unreach.workflow</code> emits verify → edit → validate → remember steps tuned to the detected languages and frameworks: exact files to read, grep targets, <code>pytest</code>/<code>tsc</code>/<code>mypy</code> commands.</p>
-        </article>
-        <article class="card">
-          <h3><a href="memory.html">Long-term memory</a></h3>
-          <p><code>.unreach/memory.json</code> caches parsed facts by content hash and remembers findings and decisions. Next session: one-liners for known findings, nothing for acknowledged ones, fewer tokens.</p>
-        </article>
+            <!-- entry -->
+            <g filter="url(#soft)">
+              <rect x="28" y="148" width="84" height="44" rx="10" fill="#2447f9"/>
+              <text x="70" y="175" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff" font-family="ui-monospace, Menlo, monospace">app.py</text>
+            </g>
+            <text x="70" y="212" text-anchor="middle" font-size="11" fill="#64748b">entry</text>
+
+            <!-- live modules -->
+            <g filter="url(#soft)">
+              <rect x="232" y="70" width="84" height="44" rx="10" fill="#fff" stroke="#e2e8f0"/>
+              <text x="274" y="97" text-anchor="middle" font-size="12.5" font-weight="600" fill="#0f172a" font-family="ui-monospace, Menlo, monospace">used.py</text>
+              <rect x="232" y="148" width="84" height="44" rx="10" fill="#fff" stroke="#e2e8f0"/>
+              <text x="274" y="175" text-anchor="middle" font-size="12.5" font-weight="600" fill="#0f172a" font-family="ui-monospace, Menlo, monospace">exports.py</text>
+              <rect x="232" y="230" width="84" height="44" rx="10" fill="#fff" stroke="#e2e8f0"/>
+              <text x="274" y="257" text-anchor="middle" font-size="12.5" font-weight="600" fill="#0f172a" font-family="ui-monospace, Menlo, monospace">hooks.py</text>
+            </g>
+
+            <!-- symbols -->
+            <g>
+              <circle cx="404" cy="114" r="8" fill="#059669"/>
+              <text x="420" y="118" font-size="12" fill="#0f172a" font-family="ui-monospace, Menlo, monospace">live_symbol</text>
+            </g>
+            <g>
+              <circle class="pulse" cx="404" cy="210" r="9" fill="#e11d48"/>
+              <text x="420" y="214" font-size="12" fill="#0f172a" font-family="ui-monospace, Menlo, monospace">dead_symbol</text>
+              <rect x="420" y="222" width="68" height="16" rx="8" fill="#ffe4e6"/>
+              <text x="454" y="234" text-anchor="middle" font-size="9.5" font-weight="700" fill="#e11d48">block 0.88</text>
+            </g>
+            <g>
+              <circle class="pulse slow" cx="404" cy="262" r="8" fill="#d97706"/>
+              <text x="420" y="266" font-size="12" fill="#0f172a" font-family="ui-monospace, Menlo, monospace">maybe_dead</text>
+              <rect x="420" y="274" width="62" height="16" rx="8" fill="#fef3c7"/>
+              <text x="451" y="286" text-anchor="middle" font-size="9.5" font-weight="700" fill="#b45309">warn 0.58</text>
+            </g>
+
+            <!-- orphan -->
+            <g filter="url(#soft)">
+              <rect class="pulse" x="380" y="30" width="108" height="44" rx="10" fill="#fff" stroke="#e11d48" stroke-width="2"/>
+              <text x="434" y="57" text-anchor="middle" font-size="12.5" font-weight="700" fill="#e11d48" font-family="ui-monospace, Menlo, monospace">orphan.py</text>
+            </g>
+            <text x="434" y="92" text-anchor="middle" font-size="11" fill="#e11d48" font-weight="700">no importers · block 0.92</text>
+
+            <!-- footer line -->
+            <line x1="20" y1="306" x2="500" y2="306" stroke="#e2e8f0"/>
+            <text x="20" y="328" font-size="11.5" fill="#64748b">2 block · 1 warn · exit 1 · auto_delete: false</text>
+          </svg>
+        </div>
       </div>
-      <p class="note">Read the <a href="research.html">research notes</a>: use cases, developer and enterprise pain points, and which mechanism answers each.</p>
+    </section>
+
+    <section class="tight">
+      <div class="container stats">
+        <div class="stat reveal"><b>16</b><span>languages with reachability graphs</span></div>
+        <div class="stat reveal d1"><b>45</b><span>frameworks recognised from imports and manifests</span></div>
+        <div class="stat reveal d2"><b>0</b><span>files deleted by Unreach, ever</span></div>
+        <div class="stat reveal d3"><b>−58%</b><span>tokens on a repeat visit (fixture, measured)</span></div>
+      </div>
     </section>
 
     <section>
-      <h2>Plugins</h2>
-      <div class="grid">
-        <article class="card">
-          <h3>Claude Code</h3>
-          <pre><code>/plugin marketplace add wolfxops/unreach
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="eyebrow">The developer problem</span>
+          <h2>Dead code is cheap to write and expensive to trust.</h2>
+          <p>Every team has it: modules nobody imports, exports nobody calls, dependencies nobody needs. Existing tools find it — then drown you in false positives, so you stop reading them. Agents make it worse: they cannot tell dead from dynamically loaded, so they either leave the mess or delete something that mattered.</p>
+        </div>
+        <div class="grid cols-3">
+          <article class="card pain reveal">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+            <h3>False positives kill adoption</h3>
+            <p>A Django signal, a FastAPI route, a Spring bean, a Rails model: all "unused" to a naive import scanner. One wrong deletion and the tool is uninstalled.</p>
+          </article>
+          <article class="card pain reveal d1">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+            <h3>Agents re-discover the repo every session</h3>
+            <p>Each conversation starts from zero: crawl the tree, re-read files, re-triage the same findings. That is the single largest token sink in agent-driven cleanup.</p>
+          </article>
+          <article class="card pain reveal d2">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg></div>
+            <h3>Polyglot repos, single-language tools</h3>
+            <p>Knip for JS, Vulture for Python, nothing agreed for Go, Java, Rust, C#, Ruby, PHP or Swift. Enterprises need one signal shape across every service.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section style="background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="eyebrow">How it works</span>
+          <h2>One engine, four stages. The model only enters at stage three — and only for what is ambiguous.</h2>
+        </div>
+        <div class="pipeline">
+          <div class="node reveal">
+            <div class="bubble">1</div>
+            <h3>Reachability graph</h3>
+            <p>Python AST, TS/JS import graph, and a reference graph for 14 more languages. Deterministic. Offline.</p>
+            <span class="tag">no LLM</span>
+          </div>
+          <div class="node reveal d1">
+            <div class="bubble">2</div>
+            <h3>Confidence score</h3>
+            <p>Named signals — decorators, base classes, string references, config mentions, dynamic imports — adjust a base score.</p>
+            <span class="tag block">block ≥ 0.85</span>
+          </div>
+          <div class="node reveal d2">
+            <div class="bubble">3</div>
+            <h3>Triage + workflow</h3>
+            <p>Warn findings go to the model once, batched, as evidence packets. The agent gets exact files, greps and validation commands.</p>
+            <span class="tag brand">budgeted LLM</span>
+          </div>
+          <div class="node reveal d3">
+            <div class="bubble">4</div>
+            <h3>Memory</h3>
+            <p>Parsed facts, finding history, decisions and verdicts persist in <code>.unreach/</code>. Next session starts warm.</p>
+            <span class="tag ok">fewer tokens</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container feature">
+        <div class="reveal">
+          <span class="eyebrow">Confidence you can read</span>
+          <h2>Every finding explains itself.</h2>
+          <p class="lead">Severity is derived from a reproducible score, not a hunch. Framework registration lowers it by 0.60. A string literal naming the module lowers it by 0.35. Only ≥ 0.85 becomes <code>block</code> and fails CI; everything else is a lead for the agent to verify.</p>
+          <ul>
+            <li>Same repository, same score — reviewable in a pull request.</li>
+            <li>Name-based graphs (Java, C#, Swift…) are capped below <code>block</code> by design.</li>
+            <li>SARIF export lands findings in GitHub Code Scanning with confidence attached.</li>
+          </ul>
+          <a class="btn ghost" href="confidence.html">Read the scoring model</a>
+        </div>
+        <div class="art gauge reveal d1" aria-label="Confidence gauge pointing at 0.92, in the block range">
+          <svg viewBox="0 0 320 200" role="img">
+            <path d="M40,150 A120,120 0 0 1 178.7,31.5" fill="none" stroke="#cbd5e1" stroke-width="22" stroke-linecap="butt"/>
+            <path d="M178.7,31.5 A120,120 0 0 1 266.9,95.5" fill="none" stroke="#f59e0b" stroke-width="22"/>
+            <path d="M266.9,95.5 A120,120 0 0 1 280,150" fill="none" stroke="#e11d48" stroke-width="22"/>
+            <text x="40" y="178" font-size="11" fill="#64748b" text-anchor="middle">0.00</text>
+            <text x="184" y="20" font-size="11" fill="#64748b" text-anchor="middle">0.55</text>
+            <text x="286" y="88" font-size="11" fill="#64748b" text-anchor="start">0.85</text>
+            <text x="280" y="178" font-size="11" fill="#64748b" text-anchor="middle">1.00</text>
+            <line class="needle" x1="160" y1="150" x2="160" y2="46" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+            <circle cx="160" cy="150" r="8" fill="#0f172a"/>
+            <text x="160" y="190" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="ui-monospace, Menlo, monospace">orphan_file · 0.92 · block</text>
+          </svg>
+          <div class="legend"><span><i style="background:#cbd5e1"></i>note &lt; 0.55</span><span><i style="background:#f59e0b"></i>warn ≥ 0.55</span><span><i style="background:#e11d48"></i>block ≥ 0.85</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section style="background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);">
+      <div class="container feature flip">
+        <div class="reveal">
+          <span class="eyebrow">Guided, dynamic workflow</span>
+          <h2>The agent gets a checklist, not a codebase.</h2>
+          <p class="lead"><code>unreach.workflow</code> emits verify → edit → validate → remember steps shaped by the detected stack: grep this symbol, read these 40 lines, run <code>go test ./...</code> or <code>pytest -q</code> or <code>dotnet build</code>, then record the decision.</p>
+          <ul>
+            <li><strong>Optimal LLM use.</strong> <code>block</code> findings are never sent to a model (the evidence suffices); <code>note</code> findings are never sent (too weak). <code>warn</code> findings go once, batched, as compact packets — never file bodies.</li>
+            <li><strong>Cached verdicts.</strong> Each verdict is stored by evidence digest; an unchanged finding is never asked about twice.</li>
+            <li><strong>Works offline.</strong> Without a key the same workflow runs on deterministic heuristics.</li>
+          </ul>
+          <a class="btn ghost" href="workflow.html">See a generated workflow</a>
+        </div>
+        <div class="art reveal d1" aria-label="Diagram of the token budget policy">
+          <svg viewBox="0 0 520 300" role="img">
+            <text x="20" y="28" font-size="13" font-weight="700" fill="#0f172a">Which findings reach the model?</text>
+            <g>
+              <rect x="20" y="52" width="150" height="64" rx="12" fill="#ffe4e6" stroke="#fecdd3"/>
+              <text x="95" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#e11d48">block</text>
+              <text x="95" y="98" text-anchor="middle" font-size="11" fill="#9f1239">certain · skip model</text>
+              <rect x="185" y="52" width="150" height="64" rx="12" fill="#fef3c7" stroke="#fde68a"/>
+              <text x="260" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#b45309">warn</text>
+              <text x="260" y="98" text-anchor="middle" font-size="11" fill="#92400e">ambiguous · triage once</text>
+              <rect x="350" y="52" width="150" height="64" rx="12" fill="#e2e8f0" stroke="#cbd5e1"/>
+              <text x="425" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#475569">note</text>
+              <text x="425" y="98" text-anchor="middle" font-size="11" fill="#475569">weak · skip model</text>
+            </g>
+            <path class="flow" d="M260,116 L260,160" stroke="#2447f9" stroke-width="2.5" fill="none" marker-end="url(#arrow2)"/>
+            <defs><marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2447f9"/></marker></defs>
+            <rect x="130" y="164" width="260" height="56" rx="12" fill="#2447f9"/>
+            <text x="260" y="188" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff">one batched call · ≤ 8 evidence packets</text>
+            <text x="260" y="207" text-anchor="middle" font-size="11" fill="#c7d2fe">id · kind · path · symbol · signals · why — no file bodies</text>
+            <path class="flow" d="M260,220 L260,250" stroke="#7c3aed" stroke-width="2.5" fill="none"/>
+            <rect x="60" y="252" width="400" height="36" rx="10" fill="#ede9fe" stroke="#ddd6fe"/>
+            <text x="260" y="275" text-anchor="middle" font-size="12" font-weight="700" fill="#5b21b6">verdicts cached by evidence digest → never re-asked</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container feature">
+        <div class="reveal">
+          <span class="eyebrow">Long-term memory</span>
+          <h2>Session two costs less than session one.</h2>
+          <p class="lead"><code>.unreach/memory.json</code> keeps parsed facts by content hash, finding history, your decisions and triage verdicts. On a repeat visit the agent receives one-liners for known findings, nothing for acknowledged ones, and only the essentials of the profile.</p>
+          <ul>
+            <li>Unchanged files are never re-parsed.</li>
+            <li><code>scan --only-new</code> turns a legacy backlog into a CI ratchet: only new dead code fails.</li>
+            <li>Safe to delete at any time; never stores source or secrets.</li>
+          </ul>
+          <a class="btn ghost" href="memory.html">How memory saves tokens</a>
+        </div>
+        <div class="art reveal d1">
+          <p class="small muted" style="margin:0 0 14px">Tokens per <code>unreach.scan</code> packet on the bundled fixture (≈4 chars/token)</p>
+          <div class="bars">
+            <div class="bar"><span>First visit, full packet</span><div class="track"><div class="fill" style="--w:100%"></div></div><b>708</b></div>
+            <div class="bar"><span>Repeat visit, compact</span><div class="track"><div class="fill ok" style="--w:42%"></div></div><b>296</b></div>
+            <div class="bar"><span>Findings payload only, first</span><div class="track"><div class="fill" style="--w:47%"></div></div><b>334</b></div>
+            <div class="bar"><span>Findings payload only, repeat</span><div class="track"><div class="fill ok" style="--w:9%"></div></div><b>65</b></div>
+          </div>
+          <p class="small muted" style="margin:14px 0 0">Measured with <code>tests/</code> fixture <code>deadapp</code>. Savings grow with repository size: the compact packet is O(findings), the full one is O(evidence).</p>
+        </div>
+      </div>
+    </section>
+
+    <section style="background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="eyebrow">Polyglot by design</span>
+          <h2>16 languages, 45 frameworks, one finding shape.</h2>
+          <p>Python gets full AST analysis. TypeScript and JavaScript (including Vue and Svelte single-file components) get an import graph. Fourteen more languages get a file-level reference graph with declared precision, so confidence stays honest. Frameworks are recognised from imports and manifests to mark entry points and registration patterns.</p>
+        </div>
+        <div class="langs">
+          <div class="lang reveal"><div><strong>Python</strong><small>AST · Django, FastAPI, Flask, Celery, Airflow…</small></div><span class="tag ok">full</span></div>
+          <div class="lang reveal"><div><strong>TypeScript / JS</strong><small>Next, React, Vue, Nuxt, Angular, Svelte, Nest…</small></div><span class="tag ok">graph</span></div>
+          <div class="lang reveal"><div><strong>Go</strong><small>Gin, Echo, Fiber, Chi, Cobra</small></div><span class="tag ok">path</span></div>
+          <div class="lang reveal"><div><strong>Rust</strong><small>Actix, Axum, Rocket, Tokio, Clap</small></div><span class="tag ok">path</span></div>
+          <div class="lang reveal d1"><div><strong>Java</strong><small>Spring, Quarkus, Micronaut, JUnit</small></div><span class="tag warn">name</span></div>
+          <div class="lang reveal d1"><div><strong>Kotlin</strong><small>Ktor, Android</small></div><span class="tag warn">name</span></div>
+          <div class="lang reveal d1"><div><strong>C#</strong><small>ASP.NET Core, xUnit, NUnit</small></div><span class="tag warn">name</span></div>
+          <div class="lang reveal d1"><div><strong>Ruby</strong><small>Rails, Sinatra, RSpec</small></div><span class="tag ok">path</span></div>
+          <div class="lang reveal d2"><div><strong>PHP</strong><small>Laravel, Symfony</small></div><span class="tag warn">name</span></div>
+          <div class="lang reveal d2"><div><strong>Swift</strong><small>SwiftUI, UIKit, Vapor</small></div><span class="tag warn">name</span></div>
+          <div class="lang reveal d2"><div><strong>Dart</strong><small>Flutter</small></div><span class="tag ok">path</span></div>
+          <div class="lang reveal d2"><div><strong>Elixir</strong><small>Phoenix</small></div><span class="tag warn">name</span></div>
+          <div class="lang reveal d3"><div><strong>Scala</strong><small>sbt projects</small></div><span class="tag warn">name</span></div>
+          <div class="lang reveal d3"><div><strong>C / C++</strong><small>header include graph</small></div><span class="tag ok">path</span></div>
+          <div class="lang reveal d3"><div><strong>Lua</strong><small>require graph, Neovim plugins</small></div><span class="tag ok">path</span></div>
+          <div class="lang reveal d3"><div><strong>Perl</strong><small>use / package graph</small></div><span class="tag ok">path</span></div>
+        </div>
+        <p class="small muted" style="margin-top:16px"><span class="tag ok">path</span> imports resolve to files; findings may reach <code>block</code>. <span class="tag warn">name</span> references are type or module tokens; findings are capped at <code>warn</code>. <a href="languages.html">Full support matrix →</a></p>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="eyebrow">Plugins</span>
+          <h2>Thin plugins. One MCP engine.</h2>
+          <p>Claude Code, Cursor and Codex each get a skill that teaches the agent the loop: <code>scan → workflow → verify → remember</code>. All three talk to the same <code>unreach mcp</code> stdio server.</p>
+        </div>
+        <div class="grid cols-3">
+          <article class="card reveal">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h7"/></svg></div>
+            <h3>Claude Code</h3>
+            <pre><code>/plugin marketplace add wolfxops/unreach
 /plugin install unreach</code></pre>
-          <p>When you ask about dead or unused code, the skill calls MCP <code>unreach.scan</code> then <code>unreach.plan</code>.</p>
-        </article>
-        <article class="card">
-          <h3>Cursor</h3>
-          <pre><code>{
-  "mcpServers": {
-    "unreach": {
-      "command": "unreach",
-      "args": ["mcp"]
-    }
-  }
-}</code></pre>
-          <p>Do not guess unused code. Point Cursor at <code>unreach mcp</code> and the plugin skill/rule.</p>
-        </article>
-        <article class="card">
-          <h3>Codex</h3>
-          <pre><code>[mcp_servers.unreach]
+            <p>Skill + MCP manifest. Ask about unused code and Claude runs the loop.</p>
+          </article>
+          <article class="card reveal d1">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l16 8-16 8z"/></svg></div>
+            <h3>Cursor</h3>
+            <pre><code>{ "mcpServers": { "unreach": {
+    "command": "unreach", "args": ["mcp"] } } }</code></pre>
+            <p>Rule + skill stop Cursor from guessing dead code without a scan.</p>
+          </article>
+          <article class="card reveal d2">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></div>
+            <h3>Codex</h3>
+            <pre><code>[mcp_servers.unreach]
 command = "unreach"
 args = ["mcp"]</code></pre>
-          <p>Add that block to <code>~/.codex/config.toml</code>. Same stdio server, same findings.</p>
-        </article>
+            <p>Add to <code>~/.codex/config.toml</code>. Same server, same findings.</p>
+          </article>
+        </div>
       </div>
     </section>
 
-    <section>
-      <h2>One engine</h2>
-      <p>One analyzer. Three manifests. Auto-delete is forbidden. <code>unreach.plan</code> returns an ordered list only.</p>
-      <p>
-        <a href="cli.html">CLI and finding schema</a>
-        ·
-        <a href="plugins.html">Plugin install details</a>
-        ·
-        <a href="https://github.com/wolfxops/unreach">GitHub</a>
-      </p>
+    <section class="tight">
+      <div class="container">
+        <div class="cta reveal">
+          <div>
+            <h2>First win in sixty seconds.</h2>
+            <p>The fixture scan needs no API key and no network. You should see an orphan file and an unused export as <code>block</code>, and an ambiguous export as <code>warn</code>.</p>
+            <div class="btn-row">
+              <a class="btn ghost" href="install.html">Install guide</a>
+              <a class="btn ghost" href="https://github.com/wolfxops/unreach">Star on GitHub</a>
+            </div>
+          </div>
+          <pre><code>pip install -e .
+unreach scan --mock
+unreach workflow --mock
+unreach languages</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div>Apache-2.0 · Vivek Singh · <a href="https://x.com/wolfxops">wolfxops</a> · Pune</div>
       <div class="house">
-        <span class="tag"><strong>Cosen</strong> runtime cost</span>
-        <span class="tag"><strong>Quorum</strong> pre-merge review</span>
-        <span class="tag"><strong>Unreach</strong> unused code in the editor</span>
+        <span class="tag"><strong>Cosen</strong>&nbsp;runtime cost</span>
+        <span class="tag"><strong>Quorum</strong>&nbsp;pre-merge review</span>
+        <span class="tag brand"><strong>Unreach</strong>&nbsp;unused code in the editor</span>
       </div>
-    </section>
-
-    <footer class="site">
-      Apache-2.0 · Vivek Singh · <a href="https://x.com/wolfxops">wolfxops</a> · Pune
-    </footer>
-  </div>
+    </div>
+  </footer>
+  <script src="assets/site.js" defer></script>
 </body>
 </html>

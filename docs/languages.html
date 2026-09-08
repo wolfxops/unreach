@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Languages &amp; frameworks — Unreach</title>
+  <meta name="description" content="Unreach support matrix: 16 languages with declared graph precision and 45 frameworks recognised from imports and manifests.">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html"><svg class="mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="#2447f9"/><circle cx="9" cy="14" r="2.4" fill="#fff"/><circle cx="19" cy="9" r="2.4" fill="#fff"/><circle cx="19" cy="19" r="2.4" fill="#ffb4c0"/><path d="M11 13.2l5.6-3.4M11 14.8l5.6 3.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>Unreach</a>
+      <nav class="primary">
+        <a href="install.html">Install</a>
+        <a href="cli.html">CLI</a>
+        <a href="languages.html" aria-current="page">Languages</a>
+        <a href="confidence.html">Confidence</a>
+        <a href="workflow.html">Workflow</a>
+        <a href="memory.html">Memory</a>
+        <a href="plugins.html">Plugins</a>
+        <a href="research.html">Research</a>
+        <a class="gh" href="https://github.com/wolfxops/unreach">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container page prose">
+    <span class="eyebrow reveal">Support matrix</span>
+    <h1 class="reveal d1">16 languages. 45 frameworks. Honest precision.</h1>
+    <p class="lead reveal d2">Every language declares how its reference graph is built, and confidence is capped accordingly. A finding in Java can never look as certain as one in Python, because it is not. Run <code>unreach languages</code> for the live table.</p>
+
+    <div class="grid cols-3 reveal d3" style="margin: 28px 0 8px">
+      <article class="card fix">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7l8-4 8 4-8 4-8-4zM4 12l8 4 8-4M4 17l8 4 8-4"/></svg></div>
+        <h3>Tier 1 · AST</h3>
+        <p>Python. Full syntax tree: exports, private defs, decorators, base classes, string literals, <code>__all__</code>, <code>__main__</code> guards, dynamic imports, attribute access on imported modules.</p>
+      </article>
+      <article class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M12 4v16"/></svg></div>
+        <h3>Tier 2 · Import graph</h3>
+        <p>TypeScript and JavaScript, including <code>.vue</code> and <code>.svelte</code>. Import specifiers resolve to files via the same rules as bundlers; exports are matched by named import.</p>
+      </article>
+      <article class="card mem">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7.5l3 8M16 7.5l-3 8M8.5 6h7"/></svg></div>
+        <h3>Tier 3 · Reference graph</h3>
+        <p>Fourteen languages. Each declares how a file is <em>identified</em> (import path, module name, declared types) and what it <em>references</em>. Precision is <code>path</code> or <code>name</code>.</p>
+      </article>
+    </div>
+
+    <h2>The matrix</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Language</th><th>Tier</th><th>Precision</th><th>Detects</th><th>Frameworks recognised</th><th>Validation commands in workflow</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Python</strong></td><td>AST</td><td><span class="tag ok">path</span></td><td>orphan_file · unused_export · unused_dep · unreachable</td><td>Django, Flask, FastAPI/Starlette, pytest, Celery, SQLAlchemy/Alembic, Click/Typer, Airflow, Pydantic</td><td><code>python -c "import …"</code> · mypy / pyright · pytest</td></tr>
+        <tr><td><strong>TypeScript / JavaScript</strong></td><td>import graph</td><td><span class="tag ok">path</span></td><td>orphan_file · unused_export</td><td>Next.js, React, Vue, Nuxt, Angular, Svelte/SvelteKit, Remix/React Router, Astro, Vite, Express/Koa/Fastify/Hono, NestJS, Electron, Jest/Vitest, Playwright/Cypress</td><td><code>npx tsc --noEmit</code> · vitest / jest / npm test</td></tr>
+        <tr><td><strong>Go</strong></td><td>reference graph</td><td><span class="tag ok">path</span></td><td>orphan_file · unused_export</td><td>Gin, Echo, Fiber, Gorilla, Chi, Cobra, urfave/cli</td><td><code>go build ./...</code> · <code>go vet ./...</code> · <code>go test ./...</code></td></tr>
+        <tr><td><strong>Rust</strong></td><td>reference graph</td><td><span class="tag ok">path</span></td><td>orphan_file · unused_export</td><td>Actix, Axum, Rocket, Warp, Tokio, Clap</td><td><code>cargo check --all-targets</code> · <code>cargo test</code></td></tr>
+        <tr><td><strong>Java</strong></td><td>reference graph</td><td><span class="tag warn">name</span></td><td>orphan_file</td><td>Spring, Quarkus, Micronaut, JUnit/TestNG</td><td>mvn compile/test · <code>./gradlew test</code></td></tr>
+        <tr><td><strong>Kotlin</strong></td><td>reference graph</td><td><span class="tag warn">name</span></td><td>orphan_file</td><td>Ktor, Android</td><td><code>./gradlew build</code> · <code>./gradlew test</code></td></tr>
+        <tr><td><strong>Scala</strong></td><td>reference graph</td><td><span class="tag warn">name</span></td><td>orphan_file</td><td>sbt projects</td><td><code>sbt compile</code> · <code>sbt test</code></td></tr>
+        <tr><td><strong>C#</strong></td><td>reference graph</td><td><span class="tag warn">name</span></td><td>orphan_file</td><td>ASP.NET Core, xUnit/NUnit/MSTest</td><td><code>dotnet build</code> · <code>dotnet test</code></td></tr>
+        <tr><td><strong>Ruby</strong></td><td>reference graph</td><td><span class="tag ok">path</span></td><td>orphan_file · unused_export</td><td>Rails, Sinatra, RSpec/Minitest</td><td>rubocop · rspec / rake test</td></tr>
+        <tr><td><strong>PHP</strong></td><td>reference graph</td><td><span class="tag warn">name</span></td><td>orphan_file · unused_export</td><td>Laravel, Symfony</td><td><code>composer validate</code> · phpunit</td></tr>
+        <tr><td><strong>Swift</strong></td><td>reference graph</td><td><span class="tag warn">name</span></td><td>orphan_file · unused_export</td><td>SwiftUI/UIKit, Vapor</td><td><code>swift build</code> · <code>swift test</code></td></tr>
+        <tr><td><strong>Dart</strong></td><td>reference graph</td><td><span class="tag ok">path</span></td><td>orphan_file</td><td>Flutter</td><td><code>dart analyze</code> · flutter test / dart test</td></tr>
+        <tr><td><strong>Elixir</strong></td><td>reference graph</td><td><span class="tag warn">name</span></td><td>orphan_file · unused_export</td><td>Phoenix</td><td><code>mix compile --warnings-as-errors</code> · <code>mix test</code></td></tr>
+        <tr><td><strong>C / C++</strong></td><td>reference graph</td><td><span class="tag ok">path</span></td><td>orphan_file (headers)</td><td>CMake / Make / Meson projects</td><td><code>cmake --build build</code> · ctest</td></tr>
+        <tr><td><strong>Lua</strong></td><td>reference graph</td><td><span class="tag ok">path</span></td><td>orphan_file · unused_export</td><td>rockspec, Neovim plugin layouts</td><td>luacheck · busted</td></tr>
+        <tr><td><strong>Perl</strong></td><td>reference graph</td><td><span class="tag ok">path</span></td><td>orphan_file · unused_export</td><td>cpanfile / Makefile.PL</td><td><code>perl -c</code> · <code>prove -l t</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h2>What precision means for confidence</h2>
+    <div class="grid cols-2">
+      <article class="card">
+        <span class="tag ok">path</span>
+        <h3>Imports resolve to files</h3>
+        <p>Go import paths via <code>go.mod</code>, Rust <code>mod</code>/<code>use crate::</code>, Dart <code>package:</code> URIs, Ruby <code>require_relative</code>, C <code>#include "…"</code>, Lua <code>require</code>, Perl <code>use</code>. A missing edge is strong evidence. Signal <code>&lt;lang&gt;_path_resolved_graph −0.03</code>; orphan files can reach <code>block</code> (0.89).</p>
+      </article>
+      <article class="card">
+        <span class="tag warn">name</span>
+        <h3>References are tokens</h3>
+        <p>Java/Kotlin/Scala imports plus same-package type names, C# and Swift declared types, PHP namespaces, Elixir modules. Reflection, DI containers and code generation can hide edges. Signal <code>&lt;lang&gt;_name_reference_graph −0.30</code>; orphan files top out at <code>warn</code> (0.62) and always get a verify step.</p>
+      </article>
+    </div>
+
+    <h2>Framework detection</h2>
+    <p>Frameworks are detected two ways and unioned: import statements in source files, and dependency names in manifests — <code>package.json</code>, <code>pyproject.toml</code>, <code>requirements.txt</code>, <code>go.mod</code>, <code>Cargo.toml</code>, <code>pom.xml</code>, <code>build.gradle(.kts)</code>, <code>*.csproj</code>, <code>Gemfile</code>, <code>composer.json</code>, <code>Package.swift</code>, <code>pubspec.yaml</code>, <code>mix.exs</code>, <code>build.sbt</code>. Each framework contributes:</p>
+    <ul>
+      <li><strong>Entry files and directories</strong> that are loaded by convention (Django <code>urls.py</code>, Next.js <code>app/</code>, Rails <code>app/</code>, Spring <code>controller/</code>, Laravel <code>routes/</code>…). These are never reported as orphans.</li>
+      <li><strong>Registration decorators / annotations</strong> (<code>@app.get</code>, <code>@receiver</code>, <code>@Component</code>, <code>@Composable</code>, <code>@HttpGet</code>…) that lower export confidence by 0.60.</li>
+      <li><strong>Framework base classes</strong> (<code>models.Model</code>, <code>ApplicationRecord</code>, <code>ControllerBase</code>, <code>StatelessWidget</code>…) that lower it by 0.35.</li>
+    </ul>
+
+    <h2>Monorepos</h2>
+    <p>Workspaces from <code>package.json</code>, <code>pnpm-workspace.yaml</code>, Nx/Turbo/Lerna, Cargo <code>[workspace]</code>, <code>go.work</code>, and nested manifests set <code>profile.monorepo</code>. The graph is built per repository root; scan a package directory for a package-local view.</p>
+
+    <div class="callout"><p><strong>Adding a language</strong> is a ~40-line entry in <code>unreach/polyglot.py</code>: suffixes, an <code>ids()</code> function, a <code>refs()</code> function, an entry rule, a test rule, and validation commands. Precision must be declared.</p></div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div>Apache-2.0 · Vivek Singh · <a href="https://x.com/wolfxops">wolfxops</a> · Pune</div>
+      <div class="house"><span class="tag"><strong>Cosen</strong>&nbsp;runtime cost</span><span class="tag"><strong>Quorum</strong>&nbsp;pre-merge review</span><span class="tag brand"><strong>Unreach</strong>&nbsp;unused code in the editor</span></div>
+    </div>
+  </footer>
+  <script src="assets/site.js" defer></script>
+</body>
+</html>

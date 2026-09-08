@@ -35,7 +35,9 @@ jobs:
           test -f docs/workflow.html
           test -f docs/memory.html
           test -f docs/research.html
+          test -f docs/languages.html
           test -f docs/assets/style.css
+          test -f docs/assets/site.js
           test -f docs/.nojekyll
       - id: configure
         continue-on-error: true

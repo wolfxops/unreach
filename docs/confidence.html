@@ -4,67 +4,100 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Confidence — Unreach</title>
+  <meta name="description" content="How Unreach computes a deterministic, explainable confidence score for every dead-code finding.">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="site">
-      <a class="brand" href="index.html">Unreach</a>
-      <nav>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html"><svg class="mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="#2447f9"/><circle cx="9" cy="14" r="2.4" fill="#fff"/><circle cx="19" cy="9" r="2.4" fill="#fff"/><circle cx="19" cy="19" r="2.4" fill="#ffb4c0"/><path d="M11 13.2l5.6-3.4M11 14.8l5.6 3.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>Unreach</a>
+      <nav class="primary">
         <a href="install.html">Install</a>
         <a href="cli.html">CLI</a>
-        <a href="confidence.html">Confidence</a>
+        <a href="languages.html">Languages</a>
+        <a href="confidence.html" aria-current="page">Confidence</a>
         <a href="workflow.html">Workflow</a>
         <a href="memory.html">Memory</a>
         <a href="plugins.html">Plugins</a>
+        <a href="research.html">Research</a>
+        <a class="gh" href="https://github.com/wolfxops/unreach">GitHub</a>
       </nav>
-    </header>
+    </div>
+  </header>
 
-    <h1>Confidence score</h1>
-    <p class="pitch">Every finding carries a deterministic <code>confidence</code> in [0, 1] and the named <code>signals</code> that produced it. No model is involved. Same repo, same score.</p>
+  <main class="container page prose">
+    <span class="eyebrow reveal">Confidence score</span>
+    <h1 class="reveal d1">A number you can argue with.</h1>
+    <p class="lead reveal d2">Every finding carries a deterministic <code>confidence</code> in [0, 1] and the named <code>signals</code> that produced it. No model is involved. Same repository, same score — which means it can be reviewed, diffed, and trusted in CI.</p>
 
-    <h2>Severity comes from confidence</h2>
-    <table>
-      <thead><tr><th>Confidence</th><th>Severity</th><th>Meaning</th></tr></thead>
-      <tbody>
-        <tr><td>≥ 0.85</td><td><code>block</code></td><td>High confidence. Exit code 1. Safe to put in the plan.</td></tr>
-        <tr><td>≥ 0.55</td><td><code>warn</code></td><td>Probably dead, but a signal suggests dynamic or framework use. Verify first.</td></tr>
-        <tr><td>&lt; 0.55</td><td><code>note</code></td><td>Guess. Shown for context; never fails CI.</td></tr>
-        <tr><td>&lt; 0.25</td><td>dropped</td><td>Default <code>--min-confidence</code>. Raise it for stricter output.</td></tr>
-      </tbody>
-    </table>
+    <div class="feature reveal d3" style="margin: 32px 0 8px">
+      <div class="art gauge" aria-label="Confidence gauge">
+        <svg viewBox="0 0 320 200" role="img">
+          <path d="M40,150 A120,120 0 0 1 178.7,31.5" fill="none" stroke="#cbd5e1" stroke-width="22"/>
+          <path d="M178.7,31.5 A120,120 0 0 1 266.9,95.5" fill="none" stroke="#f59e0b" stroke-width="22"/>
+          <path d="M266.9,95.5 A120,120 0 0 1 280,150" fill="none" stroke="#e11d48" stroke-width="22"/>
+          <text x="40" y="178" font-size="11" fill="#64748b" text-anchor="middle">0.00</text>
+          <text x="184" y="20" font-size="11" fill="#64748b" text-anchor="middle">0.55</text>
+          <text x="286" y="88" font-size="11" fill="#64748b">0.85</text>
+          <text x="280" y="178" font-size="11" fill="#64748b" text-anchor="middle">1.00</text>
+          <line class="needle" x1="160" y1="150" x2="160" y2="46" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="160" cy="150" r="8" fill="#0f172a"/>
+          <text x="160" y="190" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="ui-monospace, Menlo, monospace">base + Σ signals, clamped</text>
+        </svg>
+      </div>
+      <div>
+        <h2 style="margin-top:0">Severity comes from confidence</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Confidence</th><th>Severity</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>≥ 0.85</td><td><span class="tag block">block</span></td><td>High confidence. Exit code 1. Goes in the plan. Never sent to a model.</td></tr>
+            <tr><td>≥ 0.55</td><td><span class="tag warn">warn</span></td><td>Probably dead, but a signal hints at dynamic or framework use. Triaged once, then verified.</td></tr>
+            <tr><td>&lt; 0.55</td><td><span class="tag note">note</span></td><td>Lead only. Never fails CI, never sent to a model.</td></tr>
+            <tr><td>&lt; 0.25</td><td>dropped</td><td>Default <code>--min-confidence</code>. Raise it for stricter output.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
 
     <h2>Base score by kind</h2>
-    <pre><code>orphan_file    0.92
-unused_export  0.88
-unused_dep     0.60
-unreachable    0.50</code></pre>
+    <div class="grid cols-4">
+      <div class="stat"><b>0.92</b><span><code>orphan_file</code> — no importer edges</span></div>
+      <div class="stat"><b>0.88</b><span><code>unused_export</code> — never imported by name</span></div>
+      <div class="stat"><b>0.60</b><span><code>unused_dep</code> — declared, never imported</span></div>
+      <div class="stat"><b>0.50</b><span><code>unreachable</code> — private, unreferenced</span></div>
+    </div>
 
     <h2>Signals</h2>
-    <p>Signals are added to the base and clamped to [0.02, 0.99]. Negative signals are the false-positive defenses.</p>
-    <table>
+    <p>Signals are added to the base and clamped to [0.02, 0.99]. Negative signals are the false-positive defenses; they are the reason a Django signal handler or a Spring bean does not fail your build.</p>
+    <div class="table-wrap"><table>
       <thead><tr><th>Signal</th><th>Δ</th><th>Applies to</th><th>Why</th></tr></thead>
       <tbody>
-        <tr><td><code>framework_registration_decorator</code></td><td>−0.60</td><td>export</td><td>Routes, tasks, fixtures, commands are called by the framework.</td></tr>
-        <tr><td><code>framework_entry_role</code></td><td>−0.55</td><td>orphan</td><td>Django <code>urls.py</code>, Next.js <code>page.tsx</code>, etc. (files with this role are skipped entirely unless they also have a <code>__main__</code> guard).</td></tr>
+        <tr><td><code>framework_registration_decorator</code></td><td>−0.60</td><td>export</td><td>Routes, tasks, fixtures, commands, components are called by the framework, not imported.</td></tr>
+        <tr><td><code>framework_entry_role</code></td><td>−0.55</td><td>orphan</td><td>Django <code>urls.py</code>, Next.js <code>page.tsx</code>, Rails <code>app/**</code>, Spring <code>controller/</code>… (files with this role are skipped entirely unless they also carry a <code>__main__</code> guard).</td></tr>
         <tr><td><code>main_guard</code></td><td>−0.45</td><td>orphan</td><td><code>if __name__ == "__main__"</code> means it is a script, not an orphan.</td></tr>
         <tr><td><code>module_getattr_lazy_export</code></td><td>−0.40</td><td>export</td><td>PEP 562 lazy modules resolve names at runtime.</td></tr>
         <tr><td><code>*_named_in_string_literal</code></td><td>−0.35</td><td>both</td><td>Another file names the module/symbol in a string: plugin loaders, settings, templates.</td></tr>
-        <tr><td><code>framework_base_class</code></td><td>−0.35</td><td>export</td><td>Models, admin classes, test cases are discovered via inheritance.</td></tr>
-        <tr><td><code>*_named_in_config</code></td><td>−0.30</td><td>both</td><td>Referenced from TOML/YAML/JSON/INI/Dockerfile/Makefile/CI.</td></tr>
+        <tr><td><code>framework_base_class</code></td><td>−0.35</td><td>export</td><td>Models, admin classes, widgets, test cases are discovered via inheritance.</td></tr>
+        <tr><td><code>*_named_in_config</code></td><td>−0.30</td><td>both</td><td>Referenced from TOML/YAML/JSON/INI/XML/Gradle/Dockerfile/Makefile/CI.</td></tr>
         <tr><td><code>referenced_locally</code></td><td>−0.30</td><td>export</td><td>Used inside its own module; removing the export is a smaller change than deletion.</td></tr>
-        <tr><td><code>module_imported_whole_attribute_access_possible</code></td><td>−0.30</td><td>export</td><td><code>import pkg.mod</code> makes attribute access invisible to the graph.</td></tr>
+        <tr><td><code>module_imported_whole_attribute_access_possible</code></td><td>−0.30</td><td>export</td><td><code>import pkg.mod</code> hides some attribute access from the graph. (Direct <code>mod.name</code> access <em>is</em> tracked and clears the export.)</td></tr>
         <tr><td><code>package_init</code></td><td>−0.30</td><td>orphan</td><td><code>__init__.py</code> is loaded implicitly.</td></tr>
+        <tr><td><code>&lt;lang&gt;_name_reference_graph</code></td><td>−0.30</td><td>orphan</td><td>Java, Kotlin, Scala, C#, PHP, Swift, Elixir: references are type/module tokens, so the graph is capped at <code>warn</code>.</td></tr>
+        <tr><td><code>&lt;lang&gt;_token_match_heuristic</code></td><td>−0.30</td><td>export</td><td>Non-Python export detection is token-based; never reaches <code>block</code>.</td></tr>
+        <tr><td><code>name_token_seen_elsewhere</code></td><td>−0.20</td><td>orphan</td><td>The file's stem appears as a token in another file — possibly a string reference or reflection.</td></tr>
         <tr><td><code>decorated_unknown</code></td><td>−0.20</td><td>export</td><td>Any decorator may register the symbol somewhere.</td></tr>
         <tr><td><code>listed_in_dunder_all_public_api</code></td><td>−0.15</td><td>export</td><td>Declared public API; consumers may live outside the repo.</td></tr>
         <tr><td><code>repo_uses_dynamic_import</code></td><td>−0.08 / −0.10</td><td>both</td><td>Any <code>importlib</code>/<code>__import__</code>/<code>getattr</code> in the repo lowers global certainty.</td></tr>
-        <tr><td><code>stable_across_runs</code></td><td>up to +0.03</td><td>all</td><td>From <a href="memory.html">memory</a>: findings that survive several runs are slightly more credible.</td></tr>
         <tr><td><code>ts_regex_graph*</code></td><td>−0.05 / −0.30</td><td>TS/JS</td><td>The TS graph is regex-based; exports never reach <code>block</code>.</td></tr>
+        <tr><td><code>&lt;lang&gt;_path_resolved_graph</code></td><td>−0.03</td><td>orphan</td><td>Go, Rust, Ruby, Dart, C, Lua, Perl: imports resolve to files; small discount for regex extraction.</td></tr>
+        <tr><td><code>stable_across_runs</code></td><td>up to +0.03</td><td>all</td><td>From <a href="memory.html">memory</a>: findings that survive several runs are slightly more credible.</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
-    <h2>Example</h2>
-    <pre><code>{
+    <h2>Worked example</h2>
+    <div class="grid cols-2">
+      <div>
+        <pre><code>{
   "id": "unused_export:svc/routes.py:health",
   "kind": "unused_export",
   "severity": "note",
@@ -75,11 +108,20 @@ unreachable    0.50</code></pre>
   },
   "why": "Exported symbol `health` in svc/routes.py is never imported."
 }</code></pre>
-    <p>The route is reported (an agent may still want to know) but can never fail CI or appear as a deletion in the plan without a human raising it.</p>
+      </div>
+      <div>
+        <p>The FastAPI route is decorated with <code>@app.get</code>. Base 0.88 − 0.60 = 0.28 → <code>note</code>. It is still reported (an agent may want to know), but it can never fail CI, never appear as a deletion in the plan, and is never sent to a model.</p>
+        <p>Compare <code>pkg/hooks.py:maybe_dead</code> in the fixture: base 0.88 − 0.30 (module imported whole) = 0.58 → <code>warn</code>. That is exactly the ambiguous case the <a href="workflow.html">triage step</a> exists for.</p>
+      </div>
+    </div>
+  </main>
 
-    <footer class="site">
-      Apache-2.0 · Vivek Singh
-    </footer>
-  </div>
+  <footer class="site-footer">
+    <div class="container">
+      <div>Apache-2.0 · Vivek Singh · <a href="https://x.com/wolfxops">wolfxops</a> · Pune</div>
+      <div class="house"><span class="tag"><strong>Cosen</strong>&nbsp;runtime cost</span><span class="tag"><strong>Quorum</strong>&nbsp;pre-merge review</span><span class="tag brand"><strong>Unreach</strong>&nbsp;unused code in the editor</span></div>
+    </div>
+  </footer>
+  <script src="assets/site.js" defer></script>
 </body>
 </html>

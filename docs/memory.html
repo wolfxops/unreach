@@ -3,56 +3,83 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Memory — Unreach</title>
+  <title>Long-term memory — Unreach</title>
+  <meta name="description" content="How Unreach's .unreach/memory.json caches parsed facts, finding history, decisions and triage verdicts to cut token consumption on every following session.">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="site">
-      <a class="brand" href="index.html">Unreach</a>
-      <nav>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html"><svg class="mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="#2447f9"/><circle cx="9" cy="14" r="2.4" fill="#fff"/><circle cx="19" cy="9" r="2.4" fill="#fff"/><circle cx="19" cy="19" r="2.4" fill="#ffb4c0"/><path d="M11 13.2l5.6-3.4M11 14.8l5.6 3.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>Unreach</a>
+      <nav class="primary">
         <a href="install.html">Install</a>
         <a href="cli.html">CLI</a>
+        <a href="languages.html">Languages</a>
         <a href="confidence.html">Confidence</a>
         <a href="workflow.html">Workflow</a>
-        <a href="memory.html">Memory</a>
+        <a href="memory.html" aria-current="page">Memory</a>
         <a href="plugins.html">Plugins</a>
+        <a href="research.html">Research</a>
+        <a class="gh" href="https://github.com/wolfxops/unreach">GitHub</a>
       </nav>
-    </header>
+    </div>
+  </header>
 
-    <h1>Long-term memory</h1>
-    <p class="pitch">Unreach remembers what it already told you. <code>.unreach/memory.json</code> lives next to the scanned root and makes the next iteration cheaper in parse time and in tokens.</p>
+  <main class="container page prose">
+    <span class="eyebrow reveal">Long-term memory</span>
+    <h1 class="reveal d1">Unreach remembers what it already told you.</h1>
+    <p class="lead reveal d2"><code>.unreach/memory.json</code> lives next to the scanned root and makes every following iteration cheaper — in parse time, in model calls, and in the tokens your agent has to read.</p>
+
+    <div class="feature reveal d3" style="margin: 32px 0 8px">
+      <div class="art">
+        <p class="small muted" style="margin:0 0 14px">Tokens per <code>unreach.scan</code> packet, bundled fixture (≈4 chars/token)</p>
+        <div class="bars">
+          <div class="bar"><span>First visit, full packet</span><div class="track"><div class="fill" style="--w:100%"></div></div><b>708</b></div>
+          <div class="bar"><span>Repeat visit, compact</span><div class="track"><div class="fill ok" style="--w:42%"></div></div><b>296</b></div>
+          <div class="bar"><span>Findings only, first</span><div class="track"><div class="fill" style="--w:47%"></div></div><b>334</b></div>
+          <div class="bar"><span>Findings only, repeat</span><div class="track"><div class="fill ok" style="--w:9%"></div></div><b>65</b></div>
+        </div>
+      </div>
+      <div>
+        <h2 style="margin-top:0">Four ways it cuts tokens</h2>
+        <ol class="steps">
+          <li><span class="n">1</span><div><h4>Compact packets by default</h4><p>MCP <code>unreach.scan</code> returns full evidence only for <em>new</em> findings. Known findings come back as one-liners (<code>id · severity · confidence</code>); profile and memory summaries shrink to essentials.</p></div></li>
+          <li><span class="n">2</span><div><h4>Acknowledged findings vanish</h4><p>After <code>unreach.remember</code> with <code>keep</code> or <code>false_positive</code>, only a <code>suppressed</code> id list remains.</p></div></li>
+          <li><span class="n">3</span><div><h4>Triage verdicts are never re-asked</h4><p>Model verdicts are cached by evidence digest. A repeat session pays zero model tokens for unchanged findings.</p></div></li>
+          <li><span class="n">4</span><div><h4>Workflows name exact files</h4><p>Steps carry <code>read</code> and <code>grep</code> targets so the agent does bounded reads instead of crawling.</p></div></li>
+        </ol>
+      </div>
+    </div>
 
     <h2>What is stored</h2>
-    <table>
+    <div class="table-wrap"><table>
       <thead><tr><th>Section</th><th>Contents</th><th>Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>files</code></td><td>Per file: SHA-256 of content and extracted facts (exports, imports, decorators, bases, string literals). Never the source itself.</td><td>Unchanged files are not re-parsed. <code>cache_hits</code> / <code>cache_misses</code> are reported on every run.</td></tr>
+        <tr><td><code>files</code></td><td>Per file: SHA-256 of content and extracted facts (exports, imports/references, decorators, bases, string literals, tokens). Never the source itself.</td><td>Unchanged files are not re-parsed, in any language. <code>cache_hits</code> / <code>cache_misses</code> are reported on every run.</td></tr>
         <tr><td><code>findings</code></td><td>Per finding id: first_seen, last_seen, seen_count, last confidence, status <code>open</code>/<code>resolved</code>.</td><td>Delta per run: <code>new</code>, <code>persisting</code>, <code>resolved</code>. <code>stable_across_runs</code> nudges confidence.</td></tr>
         <tr><td><code>decisions</code></td><td>Per finding id: <code>keep</code> | <code>false_positive</code> | <code>resolved</code>, note, timestamp.</td><td><code>keep</code> and <code>false_positive</code> suppress the finding from output and the plan. Auto-flipped to <code>resolved</code> when the finding disappears.</td></tr>
+        <tr><td><code>llm</code></td><td>Per finding id: triage verdict, reason, model, evidence digest, timestamp.</td><td>The model is asked about a finding at most once per distinct evidence state. Heuristic verdicts are upgraded when a key becomes available.</td></tr>
         <tr><td><code>runs</code></td><td>Last 50 runs: totals, delta counts, cache stats.</td><td>Trend line for the team; ratchet evidence in CI.</td></tr>
         <tr><td><code>profile</code></td><td>Last detected language/framework profile.</td><td>Lets an agent answer "what kind of repo is this" without a re-scan.</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
-    <h2>How it cuts token consumption</h2>
-    <ol>
-      <li><strong>Compact packets by default.</strong> MCP <code>unreach.scan</code> returns full evidence only for <em>new</em> findings. Findings already seen come back as <code>persisting_brief</code> one-liners (<code>id</code>, <code>severity</code>, <code>confidence</code>). The response includes <code>tokens_saved_estimate</code>.</li>
-      <li><strong>Acknowledged findings vanish.</strong> After <code>unreach.remember</code> with <code>keep</code> or <code>false_positive</code>, the finding is omitted; only a <code>suppressed</code> id list remains.</li>
-      <li><strong>Workflow names exact files.</strong> Steps carry <code>read</code> and <code>grep</code> targets so the agent does bounded reads instead of crawling.</li>
-      <li><strong>Only-new mode.</strong> <code>unreach scan --only-new</code> (or <code>only_new: true</code>) prints just the delta and fails only on new <code>block</code> findings.</li>
-    </ol>
-    <pre><code># first session: 2 findings, full evidence
+    <h2>A session, end to end</h2>
+    <pre><code># first session: 3 findings, full evidence
 $ unreach scan . --format json --compact | jq .delta.counts
-{ "new": 2, "persisting": 0, "resolved": 0, "suppressed": 0 }
+{ "new": 3, "persisting": 0, "resolved": 0, "suppressed": 0 }
 
-# agent triages one as intentional public API
+# workflow triages the one warn finding (LLM if a key is set, heuristic otherwise) and caches the verdict
+$ unreach workflow . --format json | jq .llm
+{ "enabled": false, "called": false, "asked": 0, "cached": 0, "heuristic": 1, "skipped_block": 2, "skipped_note": 0, ... }
+
+# agent decides one finding is intentional public API
 $ unreach remember unused_export:pkg/exports.py:dead_symbol --decision keep --note "plugin API"
 
-# next session: nothing new, one-liners only, one suppressed
+# next session: nothing new, one-liners only, one suppressed, verdict served from cache
 $ unreach scan . --format json --compact | jq '.delta.counts, .tokens_saved_estimate'
-{ "new": 0, "persisting": 1, "resolved": 0, "suppressed": 1 }
-118</code></pre>
+{ "new": 0, "persisting": 2, "resolved": 0, "suppressed": 1 }
+269</code></pre>
 
     <h2>Commands and tools</h2>
     <pre><code>unreach memory [PATH]                     # summary + decisions
@@ -60,22 +87,28 @@ unreach memory [PATH] --clear             # delete .unreach/memory.json
 unreach memory [PATH] --forget FINDING_ID # drop one decision
 unreach remember FINDING_ID --decision keep|false_positive|resolved [--note ...] [--path PATH]
 unreach scan --no-memory                  # stateless run
+unreach scan --only-new                   # CI ratchet: fail only on new block findings
 
-MCP: unreach.memory { path?, clear? }
+MCP: unreach.memory   { path?, clear? }
 MCP: unreach.remember { id, decision, note?, path? }
-MCP: unreach.scan { only_new?, full?, memory? }</code></pre>
+MCP: unreach.scan     { only_new?, full?, memory? }
+MCP: unreach.triage   { max_items?, llm? }</code></pre>
 
     <h2>Team usage</h2>
-    <ul class="plain">
-      <li><strong>Local only:</strong> add <code>.unreach/</code> to <code>.gitignore</code> (the default in this repo).</li>
-      <li><strong>Shared baseline / ratchet:</strong> commit <code>.unreach/memory.json</code>. CI runs <code>unreach scan --only-new</code>; decisions with notes become the audit trail.</li>
-      <li><strong>Custom location:</strong> set <code>UNREACH_MEMORY_DIR</code>.</li>
-    </ul>
-    <p class="note">Memory never contains source code or secrets: only hashes, symbol names, paths, and your notes. Deleting the file is always safe; the next scan rebuilds it.</p>
+    <div class="grid cols-3">
+      <article class="card"><h3>Local only</h3><p>Add <code>.unreach/</code> to <code>.gitignore</code> (the default in this repo). Each developer and agent builds their own cache.</p></article>
+      <article class="card"><h3>Shared baseline</h3><p>Commit <code>.unreach/memory.json</code>. CI runs <code>unreach scan --only-new</code>; decisions with notes become the audit trail; triage verdicts are shared, so the team pays for each model call once.</p></article>
+      <article class="card"><h3>Custom location</h3><p>Set <code>UNREACH_MEMORY_DIR</code> to keep memory outside the repository, e.g. in a CI cache.</p></article>
+    </div>
+    <div class="callout"><p>Memory never contains source code or secrets: only hashes, symbol names, paths, tokens, and your notes. Deleting the file is always safe; the next scan rebuilds it.</p></div>
+  </main>
 
-    <footer class="site">
-      Apache-2.0 · Vivek Singh
-    </footer>
-  </div>
+  <footer class="site-footer">
+    <div class="container">
+      <div>Apache-2.0 · Vivek Singh · <a href="https://x.com/wolfxops">wolfxops</a> · Pune</div>
+      <div class="house"><span class="tag"><strong>Cosen</strong>&nbsp;runtime cost</span><span class="tag"><strong>Quorum</strong>&nbsp;pre-merge review</span><span class="tag brand"><strong>Unreach</strong>&nbsp;unused code in the editor</span></div>
+    </div>
+  </footer>
+  <script src="assets/site.js" defer></script>
 </body>
 </html>

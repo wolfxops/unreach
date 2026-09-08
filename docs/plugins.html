@@ -4,65 +4,112 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Plugins — Unreach</title>
+  <meta name="description" content="Unreach plugins for Claude Code, Cursor and Codex: thin wrappers around one stdio MCP server with eight tools.">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="site">
-      <a class="brand" href="index.html">Unreach</a>
-      <nav>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html"><svg class="mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="#2447f9"/><circle cx="9" cy="14" r="2.4" fill="#fff"/><circle cx="19" cy="9" r="2.4" fill="#fff"/><circle cx="19" cy="19" r="2.4" fill="#ffb4c0"/><path d="M11 13.2l5.6-3.4M11 14.8l5.6 3.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>Unreach</a>
+      <nav class="primary">
         <a href="install.html">Install</a>
         <a href="cli.html">CLI</a>
-        <a href="plugins.html">Plugins</a>
+        <a href="languages.html">Languages</a>
+        <a href="confidence.html">Confidence</a>
+        <a href="workflow.html">Workflow</a>
+        <a href="memory.html">Memory</a>
+        <a href="plugins.html" aria-current="page">Plugins</a>
+        <a href="research.html">Research</a>
+        <a class="gh" href="https://github.com/wolfxops/unreach">GitHub</a>
       </nav>
-    </header>
+    </div>
+  </header>
 
-    <h1>Plugins</h1>
-    <p class="pitch">Thin wrappers around one stdio MCP server. Same engine. No second scanner.</p>
-    <p>Every skill tells the agent the same loop: <code>unreach.scan</code> → <code>unreach.workflow</code> → follow the steps → <code>unreach.remember</code>. Do not guess unused code; do not delete without approval.</p>
+  <main class="container page prose">
+    <span class="eyebrow reveal">Plugins</span>
+    <h1 class="reveal d1">Thin wrappers. One MCP server. No second scanner.</h1>
+    <p class="lead reveal d2">Every plugin teaches the agent the same loop: <code>unreach.scan</code> → <code>unreach.workflow</code> → follow the steps → <code>unreach.remember</code>. Do not guess unused code; do not delete without approval.</p>
 
-    <h2>Claude Code</h2>
-    <p>Manifest: <code>plugins/claude/.claude-plugin/plugin.json</code>. Skill tells the agent to call <code>unreach.scan</code> then <code>unreach.plan</code>.</p>
-    <pre><code>/plugin marketplace add wolfxops/unreach
+    <div class="art reveal d3" style="margin: 28px 0">
+      <svg viewBox="0 0 720 200" role="img" aria-label="Three agents connecting to one MCP server">
+        <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker></defs>
+        <g font-family="Inter, -apple-system, Segoe UI, sans-serif">
+          <rect x="20" y="24" width="150" height="44" rx="10" fill="#fff" stroke="#e2e8f0"/><text x="95" y="52" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Claude Code</text>
+          <rect x="20" y="78" width="150" height="44" rx="10" fill="#fff" stroke="#e2e8f0"/><text x="95" y="106" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Cursor</text>
+          <rect x="20" y="132" width="150" height="44" rx="10" fill="#fff" stroke="#e2e8f0"/><text x="95" y="160" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Codex</text>
+          <path class="flow" d="M170,46 C230,46 240,100 290,100" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#a3)"/>
+          <path class="flow" d="M170,100 L290,100" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#a3)"/>
+          <path class="flow" d="M170,154 C230,154 240,100 290,100" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#a3)"/>
+          <rect x="294" y="66" width="150" height="68" rx="14" fill="#2447f9"/>
+          <text x="369" y="95" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">unreach mcp</text>
+          <text x="369" y="114" text-anchor="middle" font-size="11" fill="#c7d2fe">stdio · JSON-RPC · 8 tools</text>
+          <path class="flow" d="M444,100 L500,100" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#a3)"/>
+          <rect x="504" y="24" width="196" height="152" rx="14" fill="#f1f4f9" stroke="#e2e8f0"/>
+          <text x="602" y="52" text-anchor="middle" font-size="12" font-weight="700" fill="#334155">one engine</text>
+          <text x="602" y="76" text-anchor="middle" font-size="11.5" fill="#475569" font-family="ui-monospace, Menlo, monospace">scan · confidence</text>
+          <text x="602" y="96" text-anchor="middle" font-size="11.5" fill="#475569" font-family="ui-monospace, Menlo, monospace">workflow · triage</text>
+          <text x="602" y="116" text-anchor="middle" font-size="11.5" fill="#475569" font-family="ui-monospace, Menlo, monospace">plan · explain</text>
+          <text x="602" y="136" text-anchor="middle" font-size="11.5" fill="#475569" font-family="ui-monospace, Menlo, monospace">remember · memory</text>
+          <text x="602" y="158" text-anchor="middle" font-size="11" fill="#64748b">.unreach/memory.json</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="grid cols-3">
+      <article class="card reveal">
+        <h3>Claude Code</h3>
+        <p>Manifest <code>plugins/claude/.claude-plugin/plugin.json</code> registers the MCP server and the <code>unreach</code> skill.</p>
+        <pre><code>/plugin marketplace add wolfxops/unreach
 /plugin install unreach</code></pre>
-
-    <h2>Cursor</h2>
-    <p>Manifest: <code>plugins/cursor/.cursor-plugin/plugin.json</code>. Rule: do not guess unused code; call the MCP.</p>
-    <pre><code>{
+      </article>
+      <article class="card reveal d1">
+        <h3>Cursor</h3>
+        <p>Manifest <code>plugins/cursor/.cursor-plugin/plugin.json</code>; a rule stops Cursor from guessing dead code without a scan.</p>
+        <pre><code>{
   "mcpServers": {
-    "unreach": {
-      "command": "unreach",
-      "args": ["mcp"]
-    }
+    "unreach": { "command": "unreach", "args": ["mcp"] }
   }
 }</code></pre>
-
-    <h2>Codex</h2>
-    <p>See <code>plugins/codex/README.md</code>. Stdio command:</p>
-    <pre><code>unreach mcp</code></pre>
-    <pre><code>[mcp_servers.unreach]
+      </article>
+      <article class="card reveal d2">
+        <h3>Codex</h3>
+        <p>Add to <code>~/.codex/config.toml</code>. See <code>plugins/codex/README.md</code>.</p>
+        <pre><code>[mcp_servers.unreach]
 command = "unreach"
 args = ["mcp"]</code></pre>
-    <p>Place that in <code>~/.codex/config.toml</code>.</p>
+      </article>
+    </div>
 
     <h2>MCP tools</h2>
-    <table>
-      <thead>
-        <tr><th>Tool</th><th>Input</th><th>Output</th></tr>
-      </thead>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Tool</th><th>Input</th><th>Output</th></tr></thead>
       <tbody>
-        <tr><td><code>unreach.scan</code></td><td><code>{ path?, only_new?, full?, min_confidence?, memory? }</code></td><td>findings JSON with confidence; compact packet by default</td></tr>
-        <tr><td><code>unreach.explain</code></td><td><code>{ id: string }</code></td><td>paragraph</td></tr>
-        <tr><td><code>unreach.plan</code></td><td><code>{ path? }</code></td><td>ordered steps ranked by confidence, no writes</td></tr>
-        <tr><td><code>unreach.workflow</code></td><td><code>{ path?, max_findings? }</code></td><td>language-aware verify/edit/validate/remember steps</td></tr>
-        <tr><td><code>unreach.remember</code></td><td><code>{ id, decision, note?, path? }</code></td><td>stores keep / false_positive / resolved in memory</td></tr>
-        <tr><td><code>unreach.memory</code></td><td><code>{ path?, clear? }</code></td><td>runs, cache stats, open findings, decisions</td></tr>
+        <tr><td><code>unreach.scan</code></td><td><code>{ path?, lang?, only_new?, full?, min_confidence?, memory? }</code></td><td>Findings with confidence; compact packet by default (full evidence for new findings, one-liners for known ones, acknowledged ones omitted).</td></tr>
+        <tr><td><code>unreach.workflow</code></td><td><code>{ path?, max_findings?, triage? }</code></td><td>Language- and framework-aware verify / edit / validate / remember steps, ordered by triage verdicts, with an <code>llm</code> budget report.</td></tr>
+        <tr><td><code>unreach.triage</code></td><td><code>{ path?, max_items?, llm? }</code></td><td>Verdicts (<code>likely_dead</code> / <code>verify</code> / <code>keep</code>) for warn findings. One batched model call at most; cached by evidence digest; heuristic without a key.</td></tr>
+        <tr><td><code>unreach.plan</code></td><td><code>{ path? }</code></td><td>Ordered steps ranked by confidence. Never writes.</td></tr>
+        <tr><td><code>unreach.explain</code></td><td><code>{ id }</code></td><td>One paragraph; model-backed if a key is set.</td></tr>
+        <tr><td><code>unreach.remember</code></td><td><code>{ id, decision, note?, path? }</code></td><td>Stores <code>keep</code> / <code>false_positive</code> / <code>resolved</code> in memory.</td></tr>
+        <tr><td><code>unreach.memory</code></td><td><code>{ path?, clear? }</code></td><td>Runs, cache stats, open findings, decisions, triage verdict count.</td></tr>
+        <tr><td><code>unreach.languages</code></td><td><code>{}</code></td><td>Support matrix: languages, tier, precision, frameworks, validation commands.</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
-    <footer class="site">
-      Apache-2.0 · Vivek Singh
-    </footer>
-  </div>
+    <h2>The loop every skill teaches</h2>
+    <ol class="steps">
+      <li><span class="n">1</span><div><h4>Scan, do not guess</h4><p>Call <code>unreach.scan</code>. Read <code>severity</code> and <code>confidence</code>. Block findings are certain; warn findings are ambiguous; notes are leads.</p></div></li>
+      <li><span class="n">2</span><div><h4>Ask for the workflow</h4><p>Call <code>unreach.workflow</code>. Follow the steps in order. Read only the files it names; use the grep patterns it gives; respect <code>budget_hint</code>.</p></div></li>
+      <li><span class="n">3</span><div><h4>Validate, then propose</h4><p>Run the validation commands for the detected stack. Propose a patch; never delete without the user's explicit approval.</p></div></li>
+      <li><span class="n">4</span><div><h4>Remember</h4><p>Record each decision with <code>unreach.remember</code>. The next session starts from that baseline and costs fewer tokens.</p></div></li>
+    </ol>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div>Apache-2.0 · Vivek Singh · <a href="https://x.com/wolfxops">wolfxops</a> · Pune</div>
+      <div class="house"><span class="tag"><strong>Cosen</strong>&nbsp;runtime cost</span><span class="tag"><strong>Quorum</strong>&nbsp;pre-merge review</span><span class="tag brand"><strong>Unreach</strong>&nbsp;unused code in the editor</span></div>
+    </div>
+  </footer>
+  <script src="assets/site.js" defer></script>
 </body>
 </html>

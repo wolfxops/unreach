@@ -3,25 +3,84 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Agent workflow — Unreach</title>
+  <title>Guided workflow &amp; LLM budget — Unreach</title>
+  <meta name="description" content="How Unreach turns findings into a language-aware agent checklist and uses the LLM only for ambiguous findings, once, with cached verdicts.">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="site">
-      <a class="brand" href="index.html">Unreach</a>
-      <nav>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html"><svg class="mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="#2447f9"/><circle cx="9" cy="14" r="2.4" fill="#fff"/><circle cx="19" cy="9" r="2.4" fill="#fff"/><circle cx="19" cy="19" r="2.4" fill="#ffb4c0"/><path d="M11 13.2l5.6-3.4M11 14.8l5.6 3.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>Unreach</a>
+      <nav class="primary">
         <a href="install.html">Install</a>
         <a href="cli.html">CLI</a>
+        <a href="languages.html">Languages</a>
         <a href="confidence.html">Confidence</a>
-        <a href="workflow.html">Workflow</a>
+        <a href="workflow.html" aria-current="page">Workflow</a>
         <a href="memory.html">Memory</a>
         <a href="plugins.html">Plugins</a>
+        <a href="research.html">Research</a>
+        <a class="gh" href="https://github.com/wolfxops/unreach">GitHub</a>
       </nav>
-    </header>
+    </div>
+  </header>
 
-    <h1>Dynamic agentic workflow</h1>
-    <p class="pitch"><code>unreach workflow</code> / MCP <code>unreach.workflow</code> turns findings into an ordered checklist tailored to the repository's languages and frameworks. It is data an agent executes, not prose it interprets.</p>
+  <main class="container page prose">
+    <span class="eyebrow reveal">Guided dynamic workflow</span>
+    <h1 class="reveal d1">Tell the agent what to do, not what to read.</h1>
+    <p class="lead reveal d2"><code>unreach workflow</code> / MCP <code>unreach.workflow</code> turns findings into an ordered checklist shaped by the repository's languages, frameworks and history. It is data an agent executes, not prose it interprets — and it is where the model is used deliberately, not by default.</p>
+
+    <div class="pipeline reveal d3" style="margin: 40px 0 16px">
+      <div class="node"><div class="bubble">1</div><h3>verify</h3><p>Targeted grep and bounded reads. Never "read the repo".</p></div>
+      <div class="node"><div class="bubble">2</div><h3>edit</h3><p>Propose a reviewable patch. Deletion is proposed, never performed.</p></div>
+      <div class="node"><div class="bubble">3</div><h3>validate</h3><p>Compiler, type checker, tests for the detected stack; then re-scan.</p></div>
+      <div class="node"><div class="bubble">4</div><h3>remember</h3><p>Record keep / false_positive / resolved so the next session starts warm.</p></div>
+    </div>
+
+    <h2>Optimal LLM use, by construction</h2>
+    <p>Most "AI dead-code" tools stream the whole finding list — or the whole repository — through a model. Unreach inverts that. The deterministic engine decides <em>which</em> findings deserve a model's judgement, packages <em>only the evidence</em>, asks <em>once</em>, and remembers the answer.</p>
+    <div class="grid cols-3">
+      <article class="card">
+        <span class="tag block">block</span>
+        <h3>Never sent</h3>
+        <p>Confidence ≥ 0.85 means the graph already has the answer. The agent verifies with one grep and proposes the patch. Spending tokens here buys nothing.</p>
+      </article>
+      <article class="card">
+        <span class="tag warn">warn</span>
+        <h3>Triaged once, batched</h3>
+        <p>Ambiguous findings go to the model in a single call, at most 8 per run, as compact packets: <code>id · kind · path · symbol · confidence · signals · why</code>. No file bodies. Verdict: <code>likely_dead</code>, <code>verify</code>, or <code>keep</code>.</p>
+      </article>
+      <article class="card">
+        <span class="tag note">note</span>
+        <h3>Never sent</h3>
+        <p>Below 0.55 the evidence is too thin for a model to add anything but confabulation. Notes stay in the report as leads for humans.</p>
+      </article>
+    </div>
+    <div class="callout"><p><strong>Cached by evidence digest.</strong> Every verdict is stored in <code>.unreach/memory.json</code> under a hash of the finding's path, symbol, signals and confidence. If nothing about the evidence changed, the model is not asked again — across sessions, agents and machines that share the memory file.</p></div>
+    <div class="callout ok"><p><strong>Offline identical.</strong> Without <code>UNREACH_API_KEY</code>, <code>triage</code> returns deterministic heuristic verdicts from the same signals (framework/entry signal → <code>keep</code>; string/dynamic signal → <code>verify</code>; clean graph → <code>likely_dead</code>). Workflows have the same shape either way.</p></div>
+
+    <h2>How verdicts shape the workflow</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Verdict</th><th>Ordering</th><th>Budget hint given to the agent</th></tr></thead>
+      <tbody>
+        <tr><td><code>likely_dead</code></td><td>First among warn findings, right after blocks</td><td>"A single grep is enough; skip reading the file unless the grep hits."</td></tr>
+        <tr><td><code>verify</code></td><td>After likely_dead</td><td>"Read the grep hits, not the whole file."</td></tr>
+        <tr><td><code>keep</code></td><td>Removed from <code>selected_findings</code>, listed in <code>kept_by_triage</code></td><td>"Skip these; record them with <code>unreach.remember</code> if you agree."</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2>How it adapts to the stack</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Detected</th><th>Workflow changes</th></tr></thead>
+      <tbody>
+        <tr><td>Python</td><td>Import-check touched packages with <code>python -c "import pkg"</code>; run <code>pytest</code>; run <code>mypy</code>/<code>pyright</code> if configured in <code>pyproject.toml</code>.</td></tr>
+        <tr><td>Python + framework (Django, Flask, FastAPI, Celery, SQLAlchemy, Click, Airflow, pytest)</td><td>Adds verify steps for framework wiring (INSTALLED_APPS, router includes, autodiscover, entry points) and decorator registration.</td></tr>
+        <tr><td>TypeScript / JavaScript</td><td>Reads <code>package.json</code> main/exports/bin and <code>tsconfig.json</code>; runs <code>npx tsc --noEmit</code> when TypeScript is a dependency; runs <code>vitest</code> or <code>jest</code> if present.</td></tr>
+        <tr><td>Go · Rust · Java · Kotlin · Scala · C# · Ruby · PHP · Swift · Dart · Elixir · C/C++ · Lua · Perl</td><td>Adds a verify step to check build wiring and DI/reflection registration, and language-specific validation: <code>go build ./... &amp;&amp; go test ./...</code>, <code>cargo check &amp;&amp; cargo test</code>, <code>./gradlew test</code>, <code>dotnet build</code>, <code>bundle exec rspec</code>, <code>phpunit</code>, <code>swift test</code>, <code>flutter test</code>, <code>mix test</code>, <code>ctest</code>, <code>busted</code>, <code>prove</code>…</td></tr>
+        <tr><td>Monorepo</td><td><code>profile.monorepo: true</code> so the agent scopes verification to the workspace and checks cross-package imports.</td></tr>
+        <tr><td>Memory has previous runs</td><td>New findings first. The context step states how many findings were already triaged so the agent does not re-read them.</td></tr>
+      </tbody>
+    </table></div>
 
     <h2>Shape</h2>
     <pre><code>{
@@ -29,44 +88,35 @@
   "profile": { "primary": "py", "frameworks": ["fastapi", "pytest"], "monorepo": false, ... },
   "policy": { "block_threshold": 0.85, "warn_threshold": 0.55,
               "delete_requires": "explicit user approval after validation steps pass" },
-  "selected_findings": ["orphan_file:pkg/orphan.py", "unused_export:pkg/exports.py:dead_symbol"],
+  "llm": { "policy": "model sees only warn findings, once, as compact evidence packets; verdicts are cached by evidence digest",
+           "enabled": true, "called": true, "asked": 1, "cached": 0, "heuristic": 0, "skipped_block": 2, "skipped_note": 0 },
+  "selected_findings": ["orphan_file:pkg/orphan.py", "unused_export:pkg/exports.py:dead_symbol", "unused_export:pkg/hooks.py:maybe_dead"],
+  "kept_by_triage": [],
   "steps": [
-    { "id": "ctx-01",    "phase": "verify",   "action": "Read only the files named in this workflow...", "budget_hint": "..." },
-    { "id": "verify-02", "phase": "verify",   "finding_id": "...", "grep": "pkg.orphan", "read": ["pkg/orphan.py"] },
-    { "id": "edit-03",   "phase": "edit",     "finding_id": "...", "action": "If verified: propose deleting ... Do not delete without user approval." },
-    { "id": "validate-06","phase": "validate","command": "python -c \"import pkg\"" },
-    { "id": "validate-07","phase": "validate","command": "pytest -q" },
-    { "id": "validate-08","phase": "validate","tool": "unreach.scan" },
-    { "id": "mem-09",    "phase": "remember", "tool": "unreach.remember" }
+    { "id": "ctx-01",     "phase": "verify",   "action": "Read only the files named in this workflow...", "budget_hint": "First run for this repository; all findings are new." },
+    { "id": "verify-02",  "phase": "verify",   "finding_id": "orphan_file:pkg/orphan.py", "grep": "pkg.orphan", "read": ["pkg/orphan.py"] },
+    { "id": "verify-06",  "phase": "verify",   "finding_id": "unused_export:pkg/hooks.py:maybe_dead", "grep": "maybe_dead",
+                          "triage": "verify: module imported whole; grep attribute access before acting",
+                          "budget_hint": "Triage flagged a dynamic/string reference: read the grep hits, not the whole file." },
+    { "id": "edit-03",    "phase": "edit",     "finding_id": "orphan_file:pkg/orphan.py", "action": "If verified: propose deleting ... Do not delete without user approval." },
+    { "id": "validate-08","phase": "validate", "command": "python -c \"import pkg\"" },
+    { "id": "validate-09","phase": "validate", "command": "pytest -q" },
+    { "id": "validate-10","phase": "validate", "tool": "unreach.scan" },
+    { "id": "mem-11",     "phase": "remember", "tool": "unreach.remember" }
   ]
 }</code></pre>
 
-    <h2>How it adapts</h2>
-    <table>
-      <thead><tr><th>Detected</th><th>Workflow changes</th></tr></thead>
-      <tbody>
-        <tr><td>Python</td><td>Import-check touched packages with <code>python -c "import pkg"</code>; run <code>pytest</code>; run <code>mypy</code>/<code>pyright</code> if configured in <code>pyproject.toml</code>.</td></tr>
-        <tr><td>Python + framework (Django, Flask, FastAPI, Celery, SQLAlchemy, Click, pytest)</td><td>Adds a verify step to check framework wiring (INSTALLED_APPS, router includes, autodiscover, entry points) and to confirm the symbol is not registered by a decorator.</td></tr>
-        <tr><td>TypeScript / JavaScript</td><td>Reads <code>package.json</code> main/exports/bin and <code>tsconfig.json</code>; runs <code>npx tsc --noEmit</code> when TypeScript is a dependency; runs <code>vitest</code> or <code>jest</code> if present.</td></tr>
-        <tr><td>Monorepo (workspaces, pnpm, nx, turbo, nested pyproject)</td><td>Profile flags <code>monorepo: true</code> so the agent scopes verification to the workspace and checks cross-package imports.</td></tr>
-        <tr><td>Memory has previous runs</td><td>New findings are ordered first. The budget hint tells the agent how many findings were already triaged so it does not re-read them.</td></tr>
-      </tbody>
-    </table>
-
-    <h2>Phases</h2>
-    <ol>
-      <li><strong>verify</strong> — targeted grep and bounded reads (the definition block, the first 40 lines). Never "read the repo".</li>
-      <li><strong>edit</strong> — propose a reviewable patch. Deletion is always <em>proposed</em>, never performed by Unreach.</li>
-      <li><strong>validate</strong> — import check, type check, tests, and a re-scan through <code>unreach.scan</code>.</li>
-      <li><strong>remember</strong> — record <code>keep</code> / <code>false_positive</code> / <code>resolved</code> through <code>unreach.remember</code> so the next session starts from the new baseline.</li>
-    </ol>
-
     <h2>CLI</h2>
-    <pre><code>unreach workflow [PATH] [--format json|md] [--max 12] [--min-confidence 0.25] [--no-memory]</code></pre>
+    <pre><code>unreach workflow [PATH] [--format json|md] [--max 12] [--no-triage] [--no-llm]
+unreach triage   [PATH] [--format json|md] [--max-items 8] [--no-llm]</code></pre>
+  </main>
 
-    <footer class="site">
-      Apache-2.0 · Vivek Singh
-    </footer>
-  </div>
+  <footer class="site-footer">
+    <div class="container">
+      <div>Apache-2.0 · Vivek Singh · <a href="https://x.com/wolfxops">wolfxops</a> · Pune</div>
+      <div class="house"><span class="tag"><strong>Cosen</strong>&nbsp;runtime cost</span><span class="tag"><strong>Quorum</strong>&nbsp;pre-merge review</span><span class="tag brand"><strong>Unreach</strong>&nbsp;unused code in the editor</span></div>
+    </div>
+  </footer>
+  <script src="assets/site.js" defer></script>
 </body>
 </html>
