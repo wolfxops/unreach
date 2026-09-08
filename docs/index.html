@@ -30,6 +30,25 @@ unreach scan --mock</code></pre>
     </section>
 
     <section>
+      <h2>Built around the pain points</h2>
+      <div class="grid">
+        <article class="card">
+          <h3><a href="confidence.html">Confidence score</a></h3>
+          <p>Every finding carries a deterministic <code>confidence</code> and named <code>signals</code>. Framework decorators, dynamic imports, string-named modules and config references lower it. Only ≥ 0.85 becomes <code>block</code>.</p>
+        </article>
+        <article class="card">
+          <h3><a href="workflow.html">Agentic workflow</a></h3>
+          <p><code>unreach.workflow</code> emits verify → edit → validate → remember steps tuned to the detected languages and frameworks: exact files to read, grep targets, <code>pytest</code>/<code>tsc</code>/<code>mypy</code> commands.</p>
+        </article>
+        <article class="card">
+          <h3><a href="memory.html">Long-term memory</a></h3>
+          <p><code>.unreach/memory.json</code> caches parsed facts by content hash and remembers findings and decisions. Next session: one-liners for known findings, nothing for acknowledged ones, fewer tokens.</p>
+        </article>
+      </div>
+      <p class="note">Read the <a href="research.html">research notes</a>: use cases, developer and enterprise pain points, and which mechanism answers each.</p>
+    </section>
+
+    <section>
       <h2>Plugins</h2>
       <div class="grid">
         <article class="card">

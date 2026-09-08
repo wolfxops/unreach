@@ -18,10 +18,25 @@
     </header>
 
     <h1>CLI</h1>
-    <pre><code>unreach scan [PATH] [--mock] [--format json|md] [--lang auto|py|ts]
-unreach plan [PATH] [--mock]
-unreach mcp
-unreach explain FINDING_ID</code></pre>
+    <pre><code>unreach scan [PATH] [--mock] [--format json|md|sarif] [--lang auto|py|ts]
+                   [--only-new] [--compact] [--min-confidence 0.25] [--no-memory]
+unreach plan [PATH] [--mock] [--format json|md]
+unreach workflow [PATH] [--format json|md] [--max 12]
+unreach explain FINDING_ID [PATH]
+unreach remember FINDING_ID --decision keep|false_positive|resolved [--note ...] [--path PATH]
+unreach memory [PATH] [--clear] [--forget FINDING_ID]
+unreach mcp</code></pre>
+
+    <table>
+      <thead><tr><th>Flag</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>--format sarif</code></td><td>SARIF 2.1.0 for GitHub code scanning; confidence and signals in <code>properties</code>.</td></tr>
+        <tr><td><code>--only-new</code></td><td>Show only findings not present in memory; exit 1 only for new <code>block</code> findings (CI ratchet).</td></tr>
+        <tr><td><code>--compact</code></td><td>JSON: full evidence for new findings, one-liners for persisting ones, plus <code>tokens_saved_estimate</code>.</td></tr>
+        <tr><td><code>--min-confidence</code></td><td>Drop findings below the threshold (default 0.25).</td></tr>
+        <tr><td><code>--no-memory</code></td><td>Stateless run; do not read or write <code>.unreach/memory.json</code>.</td></tr>
+      </tbody>
+    </table>
 
     <h2>Exit codes</h2>
     <ul class="plain">
@@ -39,8 +54,22 @@ unreach explain FINDING_ID</code></pre>
   symbol: str | None,
   why: str,
   evidence: list[str],
+  confidence: float,        # 0..1, deterministic
+  signals: dict[str, float] # named adjustments that produced the score
 )</code></pre>
-    <p><code>block</code> is high confidence. Guessed findings stay <code>warn</code> or <code>note</code>. Python is first-class; TypeScript import graph is best-effort.</p>
+    <p>Severity is derived from confidence: <code>block</code> ≥ 0.85, <code>warn</code> ≥ 0.55, else <code>note</code>. See <a href="confidence.html">Confidence</a>. Python is first-class; the TypeScript import graph is best-effort and never reaches <code>block</code> for exports.</p>
+
+    <h2>Scan JSON envelope</h2>
+    <pre><code>{
+  "profile": { "languages": {"py": 5}, "primary": "py", "frameworks": [...], "monorepo": false, ... },
+  "counts": { "block": 2, "warn": 0, "note": 0, "total": 2 },
+  "findings": [ ...full Finding objects (new ones, or all with --format json) ],
+  "persisting_brief": [ { "id": "...", "severity": "block", "confidence": 0.92 } ],
+  "delta": { "new": [...], "persisting": [...], "resolved": [...], "suppressed": [...] },
+  "suppressed": [ { "id": "...", "decision": "keep" } ],
+  "memory": { "runs": 3, "cache_hits": 5, "cache_misses": 0, ... },
+  "tokens_saved_estimate": 118
+}</code></pre>
 
     <h2>Plan</h2>
     <p><code>unreach plan</code> and MCP <code>unreach.plan</code> return an ordered list. Unreach never deletes files and never writes a patch in v0.</p>

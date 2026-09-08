@@ -19,6 +19,7 @@
 
     <h1>Plugins</h1>
     <p class="pitch">Thin wrappers around one stdio MCP server. Same engine. No second scanner.</p>
+    <p>Every skill tells the agent the same loop: <code>unreach.scan</code> → <code>unreach.workflow</code> → follow the steps → <code>unreach.remember</code>. Do not guess unused code; do not delete without approval.</p>
 
     <h2>Claude Code</h2>
     <p>Manifest: <code>plugins/claude/.claude-plugin/plugin.json</code>. Skill tells the agent to call <code>unreach.scan</code> then <code>unreach.plan</code>.</p>
@@ -50,9 +51,12 @@ args = ["mcp"]</code></pre>
         <tr><th>Tool</th><th>Input</th><th>Output</th></tr>
       </thead>
       <tbody>
-        <tr><td><code>unreach.scan</code></td><td><code>{ path?: string }</code></td><td>findings JSON</td></tr>
+        <tr><td><code>unreach.scan</code></td><td><code>{ path?, only_new?, full?, min_confidence?, memory? }</code></td><td>findings JSON with confidence; compact packet by default</td></tr>
         <tr><td><code>unreach.explain</code></td><td><code>{ id: string }</code></td><td>paragraph</td></tr>
-        <tr><td><code>unreach.plan</code></td><td><code>{ path?: string }</code></td><td>ordered steps, no writes</td></tr>
+        <tr><td><code>unreach.plan</code></td><td><code>{ path? }</code></td><td>ordered steps ranked by confidence, no writes</td></tr>
+        <tr><td><code>unreach.workflow</code></td><td><code>{ path?, max_findings? }</code></td><td>language-aware verify/edit/validate/remember steps</td></tr>
+        <tr><td><code>unreach.remember</code></td><td><code>{ id, decision, note?, path? }</code></td><td>stores keep / false_positive / resolved in memory</td></tr>
+        <tr><td><code>unreach.memory</code></td><td><code>{ path?, clear? }</code></td><td>runs, cache stats, open findings, decisions</td></tr>
       </tbody>
     </table>
 

@@ -31,6 +31,10 @@ jobs:
           test -f docs/cli.html
           test -f docs/plugins.html
           test -f docs/install.html
+          test -f docs/confidence.html
+          test -f docs/workflow.html
+          test -f docs/memory.html
+          test -f docs/research.html
           test -f docs/assets/style.css
           test -f docs/.nojekyll
       - id: configure

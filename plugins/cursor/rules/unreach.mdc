@@ -7,4 +7,4 @@ globs:
 alwaysApply: false
 ---
 
-Do not guess unused or orphan code. Call MCP `unreach.scan`, then `unreach.plan`. Never delete files unless the user explicitly asks after reviewing the plan.
+Do not guess unused or orphan code. Call MCP `unreach.scan`, then `unreach.workflow`, and follow its steps. Only `block` findings (confidence ≥ 0.85) are actionable without verification. Never delete files unless the user explicitly approves after the validate steps pass. Record each reviewed finding with `unreach.remember`.

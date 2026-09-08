@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Research — Unreach</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand" href="index.html">Unreach</a>
+      <nav>
+        <a href="install.html">Install</a>
+        <a href="cli.html">CLI</a>
+        <a href="confidence.html">Confidence</a>
+        <a href="workflow.html">Workflow</a>
+        <a href="memory.html">Memory</a>
+        <a href="plugins.html">Plugins</a>
+      </nav>
+    </header>
+
+    <h1>Why Unreach is built this way</h1>
+    <p class="pitch">Use cases and pain points behind every feature. Each row maps a real complaint to the mechanism that answers it.</p>
+
+    <h2>Use cases</h2>
+    <table>
+      <thead><tr><th>Who</th><th>Situation</th><th>What they need</th></tr></thead>
+      <tbody>
+        <tr><td>Developer in an editor agent</td><td>Asks Claude, Cursor, or Codex "is this still used?"</td><td>A deterministic answer with evidence, not a guess from grep.</td></tr>
+        <tr><td>Agent doing a refactor</td><td>Keeps adding compatibility shims around code nobody calls</td><td>A pre-flight dead-code audit and a verify-before-delete checklist.</td></tr>
+        <tr><td>Tech lead adopting a tool</td><td>Legacy repo with hundreds of findings</td><td>Ratchet: block only <em>new</em> dead code; do not demand a big-bang cleanup.</td></tr>
+        <tr><td>Platform / enterprise team</td><td>Monorepo, many frameworks, security review</td><td>SARIF for code scanning, no network, no vendor SDK, secrets redacted, audit trail of decisions.</td></tr>
+        <tr><td>Anyone paying for tokens</td><td>Every session re-discovers the same findings</td><td>Memory: return one-liners for known findings and skip acknowledged ones.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Pain points and the mechanism that answers them</h2>
+    <table>
+      <thead><tr><th>Pain point (observed across knip, vulture, ts-prune users and agent post-mortems)</th><th>Unreach mechanism</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>False positives from dynamic imports, <code>getattr</code>, <code>importlib</code>, plugin registries and string-named modules. Engineers stop trusting the tool and disable it.</td>
+          <td><a href="confidence.html">Confidence signals</a>: <code>module_named_in_string_literal</code>, <code>module_named_in_config</code>, <code>repo_uses_dynamic_import</code>, <code>module_getattr_lazy_export</code> lower the score so the finding drops from <code>block</code> to <code>warn</code>/<code>note</code>.</td>
+        </tr>
+        <tr>
+          <td>Framework code looks dead: FastAPI routes, Django models/admin/migrations, Celery tasks, pytest fixtures, Click commands are invoked by the framework, never imported.</td>
+          <td>Framework profile in <code>langs.py</code>: entry-file roles, registration decorators, and framework base classes. A decorated route gets <code>framework_registration_decorator −0.60</code>.</td>
+        </tr>
+        <tr>
+          <td>Misconfigured entry points make used code look unused (knip's most common issue).</td>
+          <td>Entry points are inferred from <code>package.json</code> main/exports/bin, <code>pyproject.toml</code> scripts, <code>__main__</code> guards, and framework conventions. Explicit config is optional, not required.</td>
+        </tr>
+        <tr>
+          <td>Auto-delete is dangerous. AST-based removal breaks contracts; agents confidently introduce bugs from a tool's false positive.</td>
+          <td>Design law: never delete. <code>unreach.plan</code> and <code>unreach.workflow</code> return ordered steps and require validation (<code>import</code>-check, type check, tests) before a human-approved patch.</td>
+        </tr>
+        <tr>
+          <td>Legacy debt blocks adoption; teams need a CI ratchet, not a red build on day one.</td>
+          <td><a href="memory.html">Memory</a> tracks first/last seen. <code>unreach scan --only-new</code> exits 1 only for new <code>block</code> findings.</td>
+        </tr>
+        <tr>
+          <td>Enterprise wants findings in GitHub code scanning and an audit trail.</td>
+          <td><code>--format sarif</code> with confidence and signals in <code>properties</code>; decisions (<code>keep</code> / <code>false_positive</code> / <code>resolved</code>) with notes and timestamps in <code>.unreach/memory.json</code>.</td>
+        </tr>
+        <tr>
+          <td>Agents spend most tokens reading, not writing. Each session re-reads files and re-derives the same graph.</td>
+          <td>Compact MCP packets: full evidence for new findings, one-liners for persisting ones, acknowledged ones omitted. Content-hash parse cache skips unchanged files. Workflow names exact files and grep targets instead of "read the repo".</td>
+        </tr>
+        <tr>
+          <td>Tools need network, SDKs, or a model to work at all.</td>
+          <td>Detection is offline and deterministic. The LLM is used only for <code>unreach.explain</code>, over plain OpenAI-compatible HTTP, and only if a key is set.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>What Unreach deliberately does not do (v0)</h2>
+    <ul class="plain">
+      <li>No auto-delete, no <code>--fix</code>.</li>
+      <li>No SaaS, no telemetry, no cloud memory. Memory is a local JSON file you can commit or ignore.</li>
+      <li>No five-language promise. Python is first-class; TypeScript/JavaScript is an import-graph heuristic and is capped at <code>warn</code>.</li>
+    </ul>
+
+    <footer class="site">
+      Apache-2.0 · Vivek Singh
+    </footer>
+  </div>
+</body>
+</html>

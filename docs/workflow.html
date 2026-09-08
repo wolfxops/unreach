@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent workflow — Unreach</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand" href="index.html">Unreach</a>
+      <nav>
+        <a href="install.html">Install</a>
+        <a href="cli.html">CLI</a>
+        <a href="confidence.html">Confidence</a>
+        <a href="workflow.html">Workflow</a>
+        <a href="memory.html">Memory</a>
+        <a href="plugins.html">Plugins</a>
+      </nav>
+    </header>
+
+    <h1>Dynamic agentic workflow</h1>
+    <p class="pitch"><code>unreach workflow</code> / MCP <code>unreach.workflow</code> turns findings into an ordered checklist tailored to the repository's languages and frameworks. It is data an agent executes, not prose it interprets.</p>
+
+    <h2>Shape</h2>
+    <pre><code>{
+  "auto_delete": false,
+  "profile": { "primary": "py", "frameworks": ["fastapi", "pytest"], "monorepo": false, ... },
+  "policy": { "block_threshold": 0.85, "warn_threshold": 0.55,
+              "delete_requires": "explicit user approval after validation steps pass" },
+  "selected_findings": ["orphan_file:pkg/orphan.py", "unused_export:pkg/exports.py:dead_symbol"],
+  "steps": [
+    { "id": "ctx-01",    "phase": "verify",   "action": "Read only the files named in this workflow...", "budget_hint": "..." },
+    { "id": "verify-02", "phase": "verify",   "finding_id": "...", "grep": "pkg.orphan", "read": ["pkg/orphan.py"] },
+    { "id": "edit-03",   "phase": "edit",     "finding_id": "...", "action": "If verified: propose deleting ... Do not delete without user approval." },
+    { "id": "validate-06","phase": "validate","command": "python -c \"import pkg\"" },
+    { "id": "validate-07","phase": "validate","command": "pytest -q" },
+    { "id": "validate-08","phase": "validate","tool": "unreach.scan" },
+    { "id": "mem-09",    "phase": "remember", "tool": "unreach.remember" }
+  ]
+}</code></pre>
+
+    <h2>How it adapts</h2>
+    <table>
+      <thead><tr><th>Detected</th><th>Workflow changes</th></tr></thead>
+      <tbody>
+        <tr><td>Python</td><td>Import-check touched packages with <code>python -c "import pkg"</code>; run <code>pytest</code>; run <code>mypy</code>/<code>pyright</code> if configured in <code>pyproject.toml</code>.</td></tr>
+        <tr><td>Python + framework (Django, Flask, FastAPI, Celery, SQLAlchemy, Click, pytest)</td><td>Adds a verify step to check framework wiring (INSTALLED_APPS, router includes, autodiscover, entry points) and to confirm the symbol is not registered by a decorator.</td></tr>
+        <tr><td>TypeScript / JavaScript</td><td>Reads <code>package.json</code> main/exports/bin and <code>tsconfig.json</code>; runs <code>npx tsc --noEmit</code> when TypeScript is a dependency; runs <code>vitest</code> or <code>jest</code> if present.</td></tr>
+        <tr><td>Monorepo (workspaces, pnpm, nx, turbo, nested pyproject)</td><td>Profile flags <code>monorepo: true</code> so the agent scopes verification to the workspace and checks cross-package imports.</td></tr>
+        <tr><td>Memory has previous runs</td><td>New findings are ordered first. The budget hint tells the agent how many findings were already triaged so it does not re-read them.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Phases</h2>
+    <ol>
+      <li><strong>verify</strong> — targeted grep and bounded reads (the definition block, the first 40 lines). Never "read the repo".</li>
+      <li><strong>edit</strong> — propose a reviewable patch. Deletion is always <em>proposed</em>, never performed by Unreach.</li>
+      <li><strong>validate</strong> — import check, type check, tests, and a re-scan through <code>unreach.scan</code>.</li>
+      <li><strong>remember</strong> — record <code>keep</code> / <code>false_positive</code> / <code>resolved</code> through <code>unreach.remember</code> so the next session starts from the new baseline.</li>
+    </ol>
+
+    <h2>CLI</h2>
+    <pre><code>unreach workflow [PATH] [--format json|md] [--max 12] [--min-confidence 0.25] [--no-memory]</code></pre>
+
+    <footer class="site">
+      Apache-2.0 · Vivek Singh
+    </footer>
+  </div>
+</body>
+</html>
