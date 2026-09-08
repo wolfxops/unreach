@@ -35,7 +35,7 @@ TS_IMPORT_STAR_RE = re.compile(
 TS_DYNAMIC_IMPORT_RE = re.compile(r"\bimport\s*\(")
 TS_STRING_RE = re.compile(r"""['"`]([A-Za-z_][\w./-]{2,})['"`]""")
 
-FACTS_VERSION = 2
+FACTS_VERSION = 3
 
 
 class FactsCache(Protocol):
@@ -226,10 +226,12 @@ def _python_imports(
     tree: ast.AST, module_name: str, is_package: bool
 ) -> list[tuple[str, set[str], bool, bool]]:
     out: list[tuple[str, set[str], bool, bool]] = []
+    bound: dict[str, str] = {}  # local alias → module it refers to
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 out.append((alias.name, set(), False, True))
+                bound[alias.asname or alias.name.split(".")[0]] = alias.name if alias.asname else alias.name.split(".")[0]
         elif isinstance(node, ast.ImportFrom):
             target = _abs_from(module_name, is_package, node.module, node.level)
             if not target:
@@ -246,7 +248,34 @@ def _python_imports(
             for alias in node.names:
                 if alias.name != "*":
                     out.append((f"{target}.{alias.name}", set(), False, True))
+                    bound[alias.asname or alias.name] = f"{target}.{alias.name}"
+    if bound:
+        # `hooks.on_event()` after `from pkg import hooks` names a live export.
+        attr_uses: dict[str, set[str]] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute):
+                chain = _dotted_chain(node)
+                if not chain or chain[0] not in bound:
+                    continue
+                base = bound[chain[0]]
+                rest = chain[1:]
+                for i, attr in enumerate(rest):
+                    module_path = ".".join([base, *rest[:i]])
+                    attr_uses.setdefault(module_path, set()).add(attr)
+        for module_path, attrs in attr_uses.items():
+            out.append((module_path, attrs, False, False))
     return out
+
+
+def _dotted_chain(node: ast.AST) -> list[str]:
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+        return list(reversed(parts))
+    return []
 
 
 def _abs_from(
@@ -478,7 +507,7 @@ def ts_imported_set(modules: dict[str, TsModule]) -> set[str]:
 
 
 def _ts_key(rel: str) -> str:
-    for suffix in (".d.ts", ".tsx", ".ts", ".jsx", ".js", ".mts", ".cts", ".mjs"):
+    for suffix in (".d.ts", ".tsx", ".ts", ".jsx", ".js", ".mts", ".cts", ".mjs", ".vue", ".svelte"):
         if rel.endswith(suffix):
             rel = rel[: -len(suffix)]
             break

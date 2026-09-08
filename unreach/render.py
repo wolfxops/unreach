@@ -177,9 +177,72 @@ def render_workflow(payload: dict[str, Any], *, fmt: str = "md") -> str:
             lines.append(f"  - run: `{step['command']}`")
         if step.get("tool"):
             lines.append(f"  - tool: `{step['tool']}`")
+        if step.get("triage"):
+            lines.append(f"  - triage: {step['triage']}")
         if step.get("budget_hint"):
             lines.append(f"  - budget: {step['budget_hint']}")
+    llm = payload.get("llm") or {}
+    if llm:
+        lines.append("")
+        lines.append("## llm budget")
+        lines.append("")
+        lines.append(f"- policy: {llm.get('policy', '')}")
+        if "called" in llm:
+            lines.append(
+                f"- this run: {'model called' if llm.get('called') else 'no model call'} · asked {llm.get('asked', 0)} · "
+                f"cached {llm.get('cached', 0)} · heuristic {llm.get('heuristic', 0)} · "
+                f"skipped {llm.get('skipped_block', 0)} block + {llm.get('skipped_note', 0)} note"
+            )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def render_triage(payload: dict[str, Any], findings: list[Finding], *, fmt: str = "md") -> str:
+    if fmt == "json":
+        return json.dumps(payload, indent=2)
+    llm = payload.get("llm", {})
+    verdicts = payload.get("verdicts", {})
+    by_id = {f.id: f for f in findings}
+    lines = [
+        "# Unreach triage",
+        "",
+        f"Model: {'enabled (' + str(llm.get('model') or 'OpenAI-compatible') + ')' if llm.get('enabled') else 'not configured — deterministic heuristic verdicts'}",
+        f"Asked {llm.get('asked', 0)} · cached {llm.get('cached', 0)} · heuristic {llm.get('heuristic', 0)} · "
+        f"skipped {llm.get('skipped_block', 0)} block (certain) + {llm.get('skipped_note', 0)} note (too weak)"
+        + (f" · deferred {llm['deferred']} to next run" if llm.get("deferred") else ""),
+        "",
+        "Verdicts are cached in .unreach/memory.json by evidence digest; unchanged findings are never re-asked.",
+        "",
+    ]
+    if not verdicts:
+        lines.append("No warn findings to triage.")
+        return "\n".join(lines) + "\n"
+    order = {"likely_dead": 0, "verify": 1, "keep": 2}
+    for fid, entry in sorted(verdicts.items(), key=lambda kv: (order.get(kv[1].get("verdict"), 9), kv[0])):
+        finding = by_id.get(fid)
+        conf = f" {finding.confidence:.2f}" if finding else ""
+        lines.append(f"- **{entry.get('verdict')}**{conf} `{fid}` — {entry.get('reason', '')} _({entry.get('model', '')})_")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_languages(payload: dict[str, Any], *, fmt: str = "md") -> str:
+    if fmt == "json":
+        return json.dumps(payload, indent=2)
+    counts = payload["counts"]
+    lines = [
+        "# Unreach support matrix",
+        "",
+        f"{counts['languages']} languages · {counts['frameworks']} frameworks",
+        "",
+        payload["precision_note"],
+        "",
+        "| language | tier | precision | detects | frameworks |",
+        "|---|---|---|---|---|",
+    ]
+    for lang in payload["languages"]:
+        lines.append(
+            f"| {lang['name']} | {lang['tier']} | {lang['precision']} | {', '.join(lang['detects'])} | {', '.join(lang['frameworks']) or '—'} |"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def render_sarif(findings: list[Finding]) -> str:

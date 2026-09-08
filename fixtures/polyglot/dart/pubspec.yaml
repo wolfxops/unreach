@@ -1,0 +1,4 @@
+name: deaddart
+dependencies:
+  flutter:
+    sdk: flutter

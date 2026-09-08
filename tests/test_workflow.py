@@ -79,9 +79,9 @@ def test_mcp_scan_compact_after_memory(isolated_memory: Path) -> None:
     second = handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "unreach.scan", "arguments": args}}, session)
     first_payload = json.loads(first["result"]["content"][0]["text"])
     second_payload = json.loads(second["result"]["content"][0]["text"])
-    assert len(first_payload["findings"]) == 2
+    assert len(first_payload["findings"]) == 3
     assert second_payload["findings"] == []
-    assert len(second_payload["persisting_brief"]) == 2
+    assert len(second_payload["persisting_brief"]) == 3
     assert len(second["result"]["content"][0]["text"]) < len(first["result"]["content"][0]["text"])
     remembered = handle_request(
         {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "unreach.remember", "arguments": {**args, "id": "orphan_file:pkg/orphan.py", "decision": "false_positive", "note": "plugin"}}},

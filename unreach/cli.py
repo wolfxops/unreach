@@ -12,8 +12,10 @@ from unreach.confidence import DEFAULT_MIN_CONFIDENCE
 from unreach.explain import explain as explain_finding
 from unreach.memory import DECISIONS, Memory
 from unreach.mock import default_mock_root
-from unreach.render import render_plan, render_result, render_workflow
-from unreach.scan import find_by_id, scan_repo
+from unreach.render import render_languages, render_plan, render_result, render_triage, render_workflow
+from unreach.scan import find_by_id, scan_repo, supported_languages
+from unreach.support import languages_payload
+from unreach.triage import triage
 from unreach.workflow import build_workflow
 
 
@@ -50,6 +52,16 @@ def _main(argv: list[str]) -> int:
     _add_common(wf_p)
     wf_p.add_argument("--format", choices=("json", "md"), default="md")
     wf_p.add_argument("--max", type=int, default=12, help="Max findings to include")
+    wf_p.add_argument("--no-triage", action="store_true", help="Skip triage verdicts (LLM or heuristic)")
+    wf_p.add_argument("--no-llm", action="store_true", help="Use heuristic triage even if an API key is set")
+
+    tri_p = sub.add_parser("triage", help="Budgeted LLM/heuristic second opinion on ambiguous (warn) findings; verdicts cached in memory")
+    _add_common(tri_p)
+    tri_p.add_argument("--format", choices=("json", "md"), default="md")
+    tri_p.add_argument("--max-items", type=int, default=8, help="Max findings sent to the model per run")
+    tri_p.add_argument("--no-llm", action="store_true", help="Heuristic verdicts only")
+
+    sub.add_parser("languages", help="List supported languages, frameworks, and graph precision")
 
     explain_p = sub.add_parser("explain", help="Explain one finding (LLM optional)")
     explain_p.add_argument("finding_id")
@@ -76,6 +88,9 @@ def _main(argv: list[str]) -> int:
         from unreach.mcp_server import serve
 
         return serve()
+    if args.cmd == "languages":
+        sys.stdout.write(render_languages(languages_payload()))
+        return 0
     if args.cmd == "remember":
         root = _resolve_path(args.path, mock=False)
         mem = Memory(root)
@@ -117,10 +132,19 @@ def _main(argv: list[str]) -> int:
         sys.stdout.write(render_plan(result.findings, path=str(path), fmt=args.format))
         return _exit_code(result)
     if args.cmd == "workflow":
+        verdicts = None
+        if not args.no_triage:
+            mem = Memory(Path(path).resolve() if Path(path).is_dir() else Path(path).resolve().parent, enabled=not args.no_memory)
+            verdicts = triage(result.findings, mem, use_llm=False if args.no_llm else None)
         payload = build_workflow(
-            result.profile, result.findings, delta=result.delta.to_dict(), max_findings=args.max
+            result.profile, result.findings, delta=result.delta.to_dict(), max_findings=args.max, triage=verdicts
         )
         sys.stdout.write(render_workflow(payload, fmt=args.format))
+        return 0
+    if args.cmd == "triage":
+        mem = Memory(Path(path).resolve() if Path(path).is_dir() else Path(path).resolve().parent, enabled=not args.no_memory)
+        payload = triage(result.findings, mem, max_items=args.max_items, use_llm=False if args.no_llm else None)
+        sys.stdout.write(render_triage(payload, result.findings, fmt=args.format))
         return 0
     if args.cmd == "explain":
         finding = find_by_id(result.findings + result.suppressed, args.finding_id)
@@ -141,7 +165,8 @@ def _exit_code(result, *, only_new: bool = False) -> int:
 def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("path", nargs="?", default=None, help="Path to scan")
     parser.add_argument("--mock", action="store_true", help="Fixture/mock mode; no API keys")
-    parser.add_argument("--lang", choices=("auto", "py", "ts"), default="auto")
+    parser.add_argument("--lang", choices=supported_languages(), default="auto", metavar="LANG",
+                        help="auto (default) or one of: " + ", ".join(supported_languages()[1:]))
     parser.add_argument("--no-memory", action="store_true", help="Do not read or write .unreach/memory.json")
     parser.add_argument(
         "--min-confidence",

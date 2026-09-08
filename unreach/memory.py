@@ -7,6 +7,8 @@ What it stores (never file contents, never secrets):
 * ``findings`` — finding id → first/last seen, run count, last confidence.
 * ``decisions`` — agent/human decisions per finding id
   (``keep`` | ``false_positive`` | ``resolved``), with an optional note.
+* ``llm`` — triage verdicts per finding id, keyed by evidence digest, so the
+  model is never asked twice about an unchanged finding.
 * ``runs`` — compact run log with token estimates.
 
 Why it saves tokens: an agent that already triaged a finding in a previous
@@ -84,6 +86,7 @@ class Memory:
             "files": {},
             "findings": {},
             "decisions": {},
+            "llm": {},
             "runs": [],
             "profile": {},
         }
@@ -227,6 +230,7 @@ class Memory:
             "last_run": runs[-1] if runs else None,
             "open_findings": len(open_ids),
             "decisions": len(self.data["decisions"]),
+            "triage_verdicts": len(self.data.get("llm", {})),
             "cached_files": len(self.data["files"]),
             "cache_hits": self.cache_hits,
             "cache_misses": self.cache_misses,

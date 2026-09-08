@@ -3,42 +3,32 @@
 from __future__ import annotations
 
 import json
-import os
-import urllib.error
-import urllib.request
 
+from unreach.llm import LLMUnavailable, available, chat
 from unreach.scan import Finding
-
-DEFAULT_MODEL = os.environ.get("UNREACH_MODEL") or os.environ.get("OPENAI_MODEL") or "gpt-4o-mini"
-
-
-def api_key() -> str | None:
-    return os.environ.get("UNREACH_API_KEY") or os.environ.get("OPENAI_API_KEY") or None
-
-
-def base_url() -> str:
-    return (
-        os.environ.get("UNREACH_BASE_URL")
-        or os.environ.get("OPENAI_BASE_URL")
-        or "https://api.openai.com"
-    ).rstrip("/")
 
 
 def explain(finding: Finding) -> str:
-    key = api_key()
-    if key:
+    if available():
         try:
-            return _llm_explain(finding, key)
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+            return _llm_explain(finding)
+        except LLMUnavailable:
             return heuristic(finding)
     return heuristic(finding)
 
 
 def heuristic(finding: Finding) -> str:
     bits = [
-        f"Unreach classified `{finding.id}` as {finding.kind} ({finding.severity}).",
+        f"Unreach classified `{finding.id}` as {finding.kind} ({finding.severity}, confidence {finding.confidence:.2f}).",
         finding.why,
     ]
+    negatives = sorted((k, v) for k, v in finding.signals.items() if v < 0)
+    if negatives:
+        bits.append(
+            "Confidence was lowered by: "
+            + ", ".join(f"{name} ({delta:+.2f})" for name, delta in negatives)
+            + "."
+        )
     if finding.symbol:
         bits.append(
             f"The symbol `{finding.symbol}` can be removed from the public surface of "
@@ -50,42 +40,27 @@ def heuristic(finding: Finding) -> str:
             "until you confirm it is not an entry point, plugin, or test helper."
         )
     if finding.evidence:
-        bits.append("Evidence: " + "; ".join(finding.evidence) + ".")
-    bits.append("Unreach never deletes files; use `unreach plan` for an ordered suggestion list.")
+        bits.append("Evidence: " + "; ".join(e for e in finding.evidence if not e.startswith("signal ")) + ".")
+    bits.append("Unreach never deletes files; use `unreach workflow` for the verification steps.")
     return " ".join(bits)
 
 
-def _llm_explain(finding: Finding, key: str) -> str:
-    url = f"{base_url()}/v1/chat/completions"
-    payload = {
-        "model": DEFAULT_MODEL,
-        "temperature": 0,
-        "messages": [
+def _llm_explain(finding: Finding) -> str:
+    packet = {k: v for k, v in finding.to_dict().items() if k != "evidence"} | {
+        "evidence": [e for e in finding.evidence if not e.startswith("signal ")][:6]
+    }
+    text, _usage = chat(
+        [
             {
                 "role": "system",
                 "content": (
-                    "You explain static dead-code findings. Be concise. "
-                    "Never recommend automatic deletion. Do not invent other unused files."
+                    "You explain static dead-code findings in one short paragraph. "
+                    "Never recommend automatic deletion. Do not invent other unused files. "
+                    "Mention which confidence signals matter most."
                 ),
             },
-            {
-                "role": "user",
-                "content": json.dumps(finding.to_dict(), indent=2),
-            },
+            {"role": "user", "content": json.dumps(packet)},
         ],
-    }
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
+        max_tokens=300,
     )
-    with urllib.request.urlopen(request, timeout=20) as response:
-        body = json.loads(response.read().decode("utf-8"))
-    text = body["choices"][0]["message"]["content"]
-    if not isinstance(text, str) or not text.strip():
-        raise ValueError("empty LLM response")
-    return text.strip()
+    return text

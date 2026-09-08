@@ -1,7 +1,8 @@
 """Stdio MCP server.
 
 Tools: unreach.scan, unreach.explain, unreach.plan, unreach.workflow,
-unreach.remember, unreach.memory. One engine; the plugins only point here.
+unreach.triage, unreach.remember, unreach.memory, unreach.languages.
+One engine; the plugins only point here.
 """
 
 from __future__ import annotations
@@ -17,7 +18,9 @@ from unreach.explain import explain as explain_finding
 from unreach.memory import DECISIONS, Memory
 from unreach.mock import default_mock_root
 from unreach.plan import plan_payload
-from unreach.scan import ScanResult, find_by_id, scan_repo
+from unreach.scan import ScanResult, find_by_id, scan_repo, supported_languages
+from unreach.support import languages_payload
+from unreach.triage import triage
 from unreach.workflow import build_workflow
 
 PROTOCOL_VERSION = "2024-11-05"
@@ -25,7 +28,7 @@ PROTOCOL_VERSION = "2024-11-05"
 _PATH_PROPS = {
     "path": {"type": "string", "description": "Repository or subdirectory to scan. Defaults to cwd."},
     "mock": {"type": "boolean", "description": "Fixture mode. No API keys required."},
-    "lang": {"type": "string", "enum": ["auto", "py", "ts"], "description": "Language filter."},
+    "lang": {"type": "string", "enum": supported_languages(), "description": "Language filter (default auto)."},
     "min_confidence": {
         "type": "number",
         "description": f"Drop findings below this confidence (default {DEFAULT_MIN_CONFIDENCE}).",
@@ -80,8 +83,31 @@ TOOLS = [
             "properties": {
                 **_PATH_PROPS,
                 "max_findings": {"type": "integer", "description": "Cap findings in the workflow (default 12)."},
+                "triage": {"type": "boolean", "description": "Attach triage verdicts (default true; LLM only if a key is set, else heuristic)."},
             },
         },
+    },
+    {
+        "name": "unreach.triage",
+        "description": (
+            "Budgeted second opinion on ambiguous (warn) findings. Sends compact evidence packets — never "
+            "file contents — for at most max_items findings in one call, caches verdicts "
+            "(likely_dead | verify | keep) in memory by evidence digest, and never re-asks about unchanged "
+            "findings. Without an API key returns deterministic heuristic verdicts."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_PATH_PROPS,
+                "max_items": {"type": "integer", "description": "Max findings sent to the model per call (default 8)."},
+                "llm": {"type": "boolean", "description": "Set false to force heuristic verdicts."},
+            },
+        },
+    },
+    {
+        "name": "unreach.languages",
+        "description": "Support matrix: languages, detection tier, graph precision, frameworks, validation commands.",
+        "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "unreach.remember",
@@ -178,13 +204,31 @@ def dispatch_tool(name: str, arguments: dict[str, Any], session: Session) -> str
         return json.dumps(plan_payload(result.findings, path=result.path), indent=2)
     if name == "unreach.workflow":
         result = _scan(arguments, session)
+        verdicts = None
+        if arguments.get("triage", True):
+            root, _, _, _, memory = _scan_args(arguments)
+            verdicts = triage(result.findings, Memory(_root_dir(root), enabled=memory))
         payload = build_workflow(
             result.profile,
             result.findings,
             delta=result.delta.to_dict(),
             max_findings=int(arguments.get("max_findings") or 12),
+            triage=verdicts,
         )
         return json.dumps(payload, indent=2)
+    if name == "unreach.triage":
+        result = _scan(arguments, session)
+        root, _, _, _, memory = _scan_args(arguments)
+        use_llm = None if arguments.get("llm", True) else False
+        payload = triage(
+            result.findings,
+            Memory(_root_dir(root), enabled=memory),
+            max_items=int(arguments.get("max_items") or 8),
+            use_llm=use_llm,
+        )
+        return json.dumps(payload, indent=2)
+    if name == "unreach.languages":
+        return json.dumps(languages_payload(), indent=2)
     if name == "unreach.explain":
         finding_id = arguments.get("id")
         if not finding_id:
@@ -226,6 +270,11 @@ def _scan(arguments: dict[str, Any], session: Session) -> ScanResult:
     result = scan_repo(root, mock=mock, lang=lang, memory=memory, min_confidence=min_confidence)
     session.result = result
     return result
+
+
+def _root_dir(path: Path) -> Path:
+    resolved = path.resolve()
+    return resolved.parent if resolved.is_file() else resolved
 
 
 def _scan_args(arguments: dict[str, Any]) -> tuple[Path, bool, str, float, bool]:

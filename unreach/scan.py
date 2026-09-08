@@ -10,10 +10,14 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from unreach import __version__, graph
+from unreach import __version__, graph, polyglot
 from unreach import confidence as conf
 from unreach.langs import PY_SUFFIXES, TS_SUFFIXES, Profile, detect_profile, file_role
 from unreach.memory import Delta, Memory
+
+
+def supported_languages() -> list[str]:
+    return ["auto", "py", "ts", *polyglot.LANGS]
 
 SKIP_DIRS = {
     ".git",
@@ -35,6 +39,15 @@ SKIP_DIRS = {
     ".eggs",
     ".next",
     "coverage",
+    "target",
+    "vendor",
+    "Pods",
+    ".gradle",
+    "obj",
+    "_build",
+    "deps",
+    ".dart_tool",
+    "DerivedData",
 }
 
 SECRET_PATTERNS = [
@@ -184,10 +197,18 @@ def scan_repo(
     if root.is_file():
         root = root.parent
 
+    if lang not in {"auto", "py", "ts"} and lang not in polyglot.LANGS:
+        raise ValueError(f"unknown language '{lang}'; choose from {', '.join(supported_languages())}")
     mem = Memory(root, enabled=memory)
     py_files = iter_source_files(root, PY_SUFFIXES) if lang in {"auto", "py"} else []
     ts_files = iter_source_files(root, TS_SUFFIXES) if lang in {"auto", "ts"} else []
-    profile = detect_profile(root, py_files, ts_files)
+    if lang == "auto":
+        other_files = iter_source_files(root, polyglot.all_suffixes())
+    elif lang in polyglot.LANGS:
+        other_files = iter_source_files(root, polyglot.LANGS[lang].suffixes)
+    else:
+        other_files = []
+    profile = detect_profile(root, py_files, ts_files, other_files)
 
     findings: list[Finding] = []
     if py_files:
@@ -195,6 +216,8 @@ def scan_repo(
         findings.extend(_scan_python_deps(root, py_files, profile, mem))
     if ts_files:
         findings.extend(_scan_typescript(root, ts_files, profile, mem))
+    if other_files:
+        findings.extend(_scan_polyglot(root, other_files, profile, mem))
 
     findings = [_redact_finding(f) for f in findings]
     findings = _dedupe(findings)
@@ -468,6 +491,94 @@ def _scan_typescript(root: Path, files: list[Path], profile: Profile, mem: Memor
                     symbol=export,
                     why=f"Exported `{export}` in {rel} is not referenced by a named import.",
                     evidence=["TypeScript unused-export detection is heuristic", *_signal_evidence(signals)],
+                    confidence=score,
+                    signals=signals.values,
+                )
+            )
+    return findings
+
+
+# --------------------------------------------------------------------------- #
+# Other languages (generic reference graph)
+# --------------------------------------------------------------------------- #
+
+
+def _scan_polyglot(root: Path, files: list[Path], profile: Profile, mem: Memory) -> list[Finding]:
+    pfiles = polyglot.build_poly_graph(root, files, cache=mem)
+    referrers = polyglot.referenced_files(pfiles)
+    export_index = polyglot.ExportIndex(pfiles)
+    findings: list[Finding] = []
+    for pf in pfiles.values():
+        spec = polyglot.LANGS[pf.lang]
+        role = file_role(pf.rel, profile)
+        if pf.test or role in {"test", "config"}:
+            continue
+        if pf.entry or role == "entry":
+            continue
+        stem = Path(pf.rel).stem
+        precision_signal = (
+            (f"{pf.lang}_path_resolved_graph", -0.03)
+            if spec.precision == "path"
+            else (f"{pf.lang}_name_reference_graph", -0.30)
+        )
+        if not referrers[pf.rel]:
+            signals = conf.orphan_signals(
+                module_name=stem,
+                role=role,
+                has_main_guard=False,
+                name_in_strings=False,
+                name_in_config=_name_in(profile.config_tokens, pf.rel, stem, *sorted(pf.ids)[:4]),
+                repo_dynamic_import=False,
+                module_dynamic_import=False,
+                is_package_init=False,
+                seen_count=mem.seen_count(finding_id("orphan_file", pf.rel)),
+            )
+            if len(stem) >= 3 and export_index.used_elsewhere(pf.rel, stem):
+                signals.add("name_token_seen_elsewhere", -0.20)
+            signals.add(*precision_signal)
+            score = conf.score("orphan_file", signals)
+            findings.append(
+                Finding(
+                    id=finding_id("orphan_file", pf.rel),
+                    kind="orphan_file",
+                    severity=conf.severity_for(score),
+                    path=pf.rel,
+                    symbol=None,
+                    why=f"{pf.rel} is never referenced by another {spec.name} file.",
+                    evidence=[
+                        f"{spec.name} graph precision: {spec.precision}",
+                        f"identifiers other files could use: {sorted(pf.ids)[:4]}",
+                        f"role: {role}",
+                        *_signal_evidence(signals),
+                    ],
+                    confidence=score,
+                    signals=signals.values,
+                )
+            )
+            continue
+        if not spec.exports:
+            continue
+        for symbol in pf.exports:
+            if len(symbol) < 3 or symbol.lower() in {"main", "new", "init", "run", "setup", "index", "call", "self"}:
+                continue
+            if export_index.used_elsewhere(pf.rel, symbol):
+                continue
+            signals = conf.Signals()
+            signals.add("not_referenced_by_other_files", 0.0)
+            signals.add(f"{pf.lang}_token_match_heuristic", -0.30)
+            if _name_in(profile.config_tokens, symbol):
+                signals.add("symbol_named_in_config", -0.30)
+            signals.add("stable_across_runs", min(0.03, 0.01 * max(0, mem.seen_count(finding_id("unused_export", pf.rel, symbol)) - 1)))
+            score = conf.score("unused_export", signals)
+            findings.append(
+                Finding(
+                    id=finding_id("unused_export", pf.rel, symbol),
+                    kind="unused_export",
+                    severity=conf.severity_for(score),
+                    path=pf.rel,
+                    symbol=symbol,
+                    why=f"Public `{symbol}` in {pf.rel} is not referenced by any other {spec.name} file.",
+                    evidence=[f"{spec.name} export detection is token-based (heuristic)", *_signal_evidence(signals)],
                     confidence=score,
                     signals=signals.values,
                 )

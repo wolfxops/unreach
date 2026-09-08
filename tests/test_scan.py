@@ -72,8 +72,10 @@ def test_mcp_scan_tool() -> None:
         "unreach.explain",
         "unreach.plan",
         "unreach.workflow",
+        "unreach.triage",
         "unreach.remember",
         "unreach.memory",
+        "unreach.languages",
     }
     called = handle_request(
         {
