@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Prefer GitHub Actions deploy when Pages is enabled for Actions.
+# If the token cannot create the site, enable classic Pages:
+# Settings → Pages → Branch: main → folder: /docs
 permissions:
   contents: read
   pages: write
@@ -22,11 +25,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
+      - name: Confirm static docs
+        run: |
+          test -f docs/index.html
+          test -f docs/cli.html
+          test -f docs/plugins.html
+          test -f docs/install.html
+          test -f docs/assets/style.css
+          test -f docs/.nojekyll
+      - id: configure
+        continue-on-error: true
+        uses: actions/configure-pages@v5
         with:
           enablement: true
-      - uses: actions/upload-pages-artifact@v3
+      - if: steps.configure.outcome == 'success'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: docs
-      - id: deployment
+      - if: steps.configure.outcome == 'success'
+        id: deployment
         uses: actions/deploy-pages@v4
+      - if: steps.configure.outcome != 'success'
+        name: Classic Pages reminder
+        run: |
+          echo "Actions could not enable GitHub Pages (token cannot create the site)."
+          echo "Enable Settings → Pages → Branch: main → folder: /docs"
