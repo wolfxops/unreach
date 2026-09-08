@@ -1,18 +1,29 @@
-"""Import graphs for Python and TypeScript. Deterministic; no LLM."""
+"""Import graphs for Python and TypeScript. Deterministic; no LLM.
+
+Parsing is split into two phases so results can be cached:
+
+1. ``extract_python_facts`` turns one file into a JSON-serializable dict.
+2. ``build_python_graph`` links facts into modules.
+
+The optional ``cache`` object (see ``unreach.memory``) lets a second scan skip
+re-parsing files whose content hash did not change.
+"""
 
 from __future__ import annotations
 
 import ast
+import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Protocol
 
 TS_IMPORT_RE = re.compile(
     r"""(?:import\s+(?:type\s+)?(?:[\s\S]*?\sfrom\s+)?|export\s+(?:type\s+)?[\s\S]*?\sfrom\s+|require\s*\(\s*)['"]([^'"]+)['"]""",
     re.MULTILINE,
 )
 TS_EXPORT_FN_RE = re.compile(
-    r"export\s+(?:async\s+)?(?:function|class|const|let|var|enum|type|interface)\s+(\w+)"
+    r"export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var|enum|type|interface)\s+(\w+)"
 )
 TS_EXPORT_NAMED_RE = re.compile(r"export\s+(?:type\s+)?\{([^}]+)\}")
 TS_IMPORT_NAMED_RE = re.compile(
@@ -21,6 +32,16 @@ TS_IMPORT_NAMED_RE = re.compile(
 TS_IMPORT_STAR_RE = re.compile(
     r"""import\s+(?:type\s+)?\*\s+as\s+\w+\s+from\s+['"]([^'"]+)['"]"""
 )
+TS_DYNAMIC_IMPORT_RE = re.compile(r"\bimport\s*\(")
+TS_STRING_RE = re.compile(r"""['"`]([A-Za-z_][\w./-]{2,})['"`]""")
+
+FACTS_VERSION = 2
+
+
+class FactsCache(Protocol):
+    def get(self, rel: str, digest: str) -> dict[str, Any] | None: ...
+
+    def put(self, rel: str, digest: str, facts: dict[str, Any]) -> None: ...
 
 
 @dataclass
@@ -37,6 +58,14 @@ class PyModule:
     whole_module_imported: bool = False
     referenced: bool = False
     imports_modules: set[str] = field(default_factory=set)
+    decorated: dict[str, list[str]] = field(default_factory=dict)
+    bases: dict[str, list[str]] = field(default_factory=dict)
+    strings: set[str] = field(default_factory=set)
+    has_main_guard: bool = False
+    dynamic_import: bool = False
+    has_module_getattr: bool = False
+    raw_imports: list[tuple[str, list[str], bool, bool]] = field(default_factory=list)
+    digest: str = ""
 
 
 @dataclass
@@ -47,6 +76,13 @@ class TsModule:
     imported_names: set[str] = field(default_factory=set)
     imports: set[str] = field(default_factory=set)
     namespace_imported: bool = False
+    dynamic_import: bool = False
+    strings: set[str] = field(default_factory=set)
+    digest: str = ""
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
 
 
 def module_name_for(root: Path, path: Path) -> tuple[str, bool]:
@@ -58,23 +94,76 @@ def module_name_for(root: Path, path: Path) -> tuple[str, bool]:
     return ".".join(parts), is_package
 
 
-def build_python_graph(root: Path, files: list[Path]) -> dict[str, PyModule]:
+# --------------------------------------------------------------------------- #
+# Python facts extraction (cacheable)
+# --------------------------------------------------------------------------- #
+
+
+def extract_python_facts(text: str, module_name: str, is_package: bool) -> dict[str, Any]:
+    facts: dict[str, Any] = {
+        "v": FACTS_VERSION,
+        "exports": [],
+        "private_defs": {},
+        "local_uses": [],
+        "imports": [],
+        "decorated": {},
+        "bases": {},
+        "strings": [],
+        "has_main_guard": False,
+        "dynamic_import": False,
+        "has_module_getattr": False,
+        "parse_ok": True,
+    }
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        facts["parse_ok"] = False
+        return facts
+
+    exports, private = _python_defs(tree)
+    facts["exports"] = exports
+    facts["private_defs"] = private
+    defined = set(exports) | set(private)
+    facts["local_uses"] = sorted(_local_name_uses(tree, defined))
+    facts["imports"] = [
+        [imported, sorted(names), star, whole]
+        for imported, names, star, whole in _python_imports(tree, module_name, is_package)
+    ]
+    facts["decorated"] = _decorators(tree)
+    facts["bases"] = _bases(tree)
+    facts["strings"] = sorted(_string_literals(tree))
+    facts["has_main_guard"] = _has_main_guard(tree)
+    facts["dynamic_import"] = _uses_dynamic_import(tree)
+    facts["has_module_getattr"] = any(
+        isinstance(node, ast.FunctionDef) and node.name == "__getattr__"
+        for node in (tree.body if isinstance(tree, ast.Module) else [])
+    )
+    return facts
+
+
+def build_python_graph(
+    root: Path, files: list[Path], cache: FactsCache | None = None
+) -> dict[str, PyModule]:
     modules: dict[str, PyModule] = {}
     for path in files:
         name, is_package = module_name_for(root, path)
         if not name:
             name = path.stem
         rel = path.resolve().relative_to(root.resolve()).as_posix()
-        modules[name] = PyModule(name=name, rel_path=rel, path=path, is_package=is_package)
+        module = PyModule(name=name, rel_path=rel, path=path, is_package=is_package)
+        text = _read(path)
+        module.digest = sha256_text(text)
+        facts = cache.get(rel, module.digest) if cache is not None else None
+        if facts is None or facts.get("v") != FACTS_VERSION:
+            facts = extract_python_facts(text, name, is_package)
+            if cache is not None:
+                cache.put(rel, module.digest, facts)
+        _apply_facts(module, facts)
+        modules[name] = module
 
     for module in modules.values():
-        tree = _parse(module.path)
-        if tree is None:
-            continue
-        module.exports, module.private_defs = _python_defs(tree)
-        module.local_uses = _local_name_uses(tree, defined=set(module.exports) | set(module.private_defs))
-        for imported, names, star, whole in _python_imports(tree, module):
-            target = _resolve_module(imported, set(modules))
+        for imported, names, star, whole in module.raw_imports:
+            target = _resolve_module(imported, modules)
             if target is None:
                 continue
             module.imports_modules.add(target)
@@ -88,16 +177,23 @@ def build_python_graph(root: Path, files: list[Path]) -> dict[str, PyModule]:
             for parent in _parents(target):
                 if parent in modules:
                     modules[parent].referenced = True
-
-    # Second pass: any module that appears in imports_modules is imported.
-    for module in modules.values():
-        for target in module.imports_modules:
-            if target in modules:
-                modules[target].referenced = True
-            for parent in _parents(target):
-                if parent in modules:
-                    modules[parent].referenced = True
     return modules
+
+
+def _apply_facts(module: PyModule, facts: dict[str, Any]) -> None:
+    module.exports = list(facts.get("exports", []))
+    module.private_defs = {k: int(v) for k, v in facts.get("private_defs", {}).items()}
+    module.local_uses = set(facts.get("local_uses", []))
+    module.decorated = {k: list(v) for k, v in facts.get("decorated", {}).items()}
+    module.bases = {k: list(v) for k, v in facts.get("bases", {}).items()}
+    module.strings = set(facts.get("strings", []))
+    module.has_main_guard = bool(facts.get("has_main_guard", False))
+    module.dynamic_import = bool(facts.get("dynamic_import", False))
+    module.has_module_getattr = bool(facts.get("has_module_getattr", False))
+    module.raw_imports = [
+        (str(item[0]), list(item[1]), bool(item[2]), bool(item[3]))
+        for item in facts.get("imports", [])
+    ]
 
 
 def imported_module_set(modules: dict[str, PyModule]) -> set[str]:
@@ -116,14 +212,18 @@ def _parents(name: str) -> list[str]:
     return [".".join(parts[:i]) for i in range(1, len(parts))]
 
 
-def _resolve_module(name: str, known: set[str]) -> str | None:
+def _resolve_module(name: str, known: dict[str, PyModule]) -> str | None:
     if name in known:
         return name
+    # `from pkg.mod import thing` where `pkg.mod.thing` is itself a module.
+    head, _, _tail = name.rpartition(".")
+    if head and head in known:
+        return None
     return None
 
 
 def _python_imports(
-    tree: ast.AST, module: PyModule
+    tree: ast.AST, module_name: str, is_package: bool
 ) -> list[tuple[str, set[str], bool, bool]]:
     out: list[tuple[str, set[str], bool, bool]] = []
     for node in ast.walk(tree):
@@ -131,26 +231,31 @@ def _python_imports(
             for alias in node.names:
                 out.append((alias.name, set(), False, True))
         elif isinstance(node, ast.ImportFrom):
-            target = _abs_from(module, node.module, node.level)
+            target = _abs_from(module_name, is_package, node.module, node.level)
             if not target:
                 continue
             names: set[str] = set()
             star = False
-            whole = False
             for alias in node.names:
                 if alias.name == "*":
                     star = True
                 else:
                     names.add(alias.name)
-            out.append((target, names, star, whole))
+            out.append((target, names, star, False))
+            # `from pkg import submodule` also references pkg.submodule.
+            for alias in node.names:
+                if alias.name != "*":
+                    out.append((f"{target}.{alias.name}", set(), False, True))
     return out
 
 
-def _abs_from(module: PyModule, imported: str | None, level: int) -> str | None:
+def _abs_from(
+    module_name: str, is_package: bool, imported: str | None, level: int
+) -> str | None:
     if level == 0:
         return imported
-    parts = module.name.split(".")
-    if not module.is_package:
+    parts = module_name.split(".")
+    if not is_package:
         parts = parts[:-1]
     if level > 1:
         drop = level - 1
@@ -166,11 +271,14 @@ def _python_defs(tree: ast.AST) -> tuple[list[str], dict[str, int]]:
     public: list[str] = []
     private: dict[str, int] = {}
     all_names: list[str] | None = None
-    for node in tree.body if isinstance(tree, ast.Module) else []:
+    body = tree.body if isinstance(tree, ast.Module) else []
+    for node in body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if node.name.startswith("_") and not node.name.startswith("__"):
+            if node.name.startswith("__"):
+                continue
+            if node.name.startswith("_"):
                 private[node.name] = getattr(node, "lineno", 1)
-            elif not node.name.startswith("__"):
+            else:
                 public.append(node.name)
         elif isinstance(node, ast.Assign):
             for target in node.targets:
@@ -179,14 +287,12 @@ def _python_defs(tree: ast.AST) -> tuple[list[str], dict[str, int]]:
                     if parsed is not None:
                         all_names = parsed
                 elif isinstance(target, ast.Name) and not target.id.startswith("_"):
-                    if _looks_like_export_assign(node):
-                        public.append(target.id)
+                    public.append(target.id)
         elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
             if not node.target.id.startswith("_"):
                 public.append(node.target.id)
     if all_names is not None:
-        public = [name for name in all_names]
-    # Deduplicate while preserving order.
+        public = list(all_names)
     seen: set[str] = set()
     ordered: list[str] = []
     for name in public:
@@ -194,11 +300,6 @@ def _python_defs(tree: ast.AST) -> tuple[list[str], dict[str, int]]:
             seen.add(name)
             ordered.append(name)
     return ordered, private
-
-
-def _looks_like_export_assign(node: ast.Assign) -> bool:
-    # Skip `x = import` style noise; keep simple constants and names.
-    return True
 
 
 def _const_list(node: ast.AST) -> list[str] | None:
@@ -215,10 +316,6 @@ def _const_list(node: ast.AST) -> list[str] | None:
 
 def _local_name_uses(tree: ast.AST, defined: set[str]) -> set[str]:
     used: set[str] = set()
-    defined_nodes = set()
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            defined_nodes.add(id(node))
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in defined:
             used.add(node.id)
@@ -227,36 +324,143 @@ def _local_name_uses(tree: ast.AST, defined: set[str]) -> set[str]:
     return used
 
 
-def _parse(path: Path) -> ast.AST | None:
+def _decorators(tree: ast.AST) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    body = tree.body if isinstance(tree, ast.Module) else []
+    for node in body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names = [_dotted(dec) for dec in node.decorator_list]
+            names = [n for n in names if n]
+            if names:
+                out[node.name] = names
+    return out
+
+
+def _bases(tree: ast.AST) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    body = tree.body if isinstance(tree, ast.Module) else []
+    for node in body:
+        if isinstance(node, ast.ClassDef) and node.bases:
+            names = [_dotted(base) for base in node.bases]
+            out[node.name] = [n for n in names if n]
+    return out
+
+
+def _dotted(node: ast.AST) -> str:
+    if isinstance(node, ast.Call):
+        return _dotted(node.func)
+    if isinstance(node, ast.Attribute):
+        head = _dotted(node.value)
+        return f"{head}.{node.attr}" if head else node.attr
+    if isinstance(node, ast.Name):
+        return node.id
+    return ""
+
+
+def _string_literals(tree: ast.AST, limit: int = 400) -> set[str]:
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            value = node.value.strip()
+            if 3 <= len(value) <= 120 and re.fullmatch(r"[A-Za-z_][\w./:-]*", value):
+                out.add(value)
+                if len(out) >= limit:
+                    break
+    return out
+
+
+def _has_main_guard(tree: ast.AST) -> bool:
+    body = tree.body if isinstance(tree, ast.Module) else []
+    for node in body:
+        if isinstance(node, ast.If):
+            test = ast.unparse(node.test) if hasattr(ast, "unparse") else ""
+            if "__name__" in test and "__main__" in test:
+                return True
+    return False
+
+
+def _uses_dynamic_import(tree: ast.AST) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            name = _dotted(node.func)
+            if name in {
+                "importlib.import_module",
+                "import_module",
+                "__import__",
+                "getattr",
+                "globals",
+                "pkgutil.iter_modules",
+                "entry_points",
+                "importlib.metadata.entry_points",
+            }:
+                return True
+    return False
+
+
+def _read(path: Path) -> str:
     try:
-        return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except (OSError, UnicodeDecodeError, SyntaxError):
-        return None
+        return Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
 
 
-def build_typescript_graph(root: Path, files: list[Path]) -> dict[str, TsModule]:
+# --------------------------------------------------------------------------- #
+# TypeScript / JavaScript
+# --------------------------------------------------------------------------- #
+
+
+def extract_ts_facts(text: str) -> dict[str, Any]:
+    exports = TS_EXPORT_FN_RE.findall(text)
+    for group in TS_EXPORT_NAMED_RE.findall(text):
+        exports.extend(_split_names(group))
+    return {
+        "v": FACTS_VERSION,
+        "exports": list(dict.fromkeys(exports)),
+        "imports": TS_IMPORT_RE.findall(text),
+        "named": [[_split_names(names), spec] for names, spec in TS_IMPORT_NAMED_RE.findall(text)],
+        "star": TS_IMPORT_STAR_RE.findall(text),
+        "dynamic_import": bool(TS_DYNAMIC_IMPORT_RE.search(text)),
+        "strings": sorted(set(TS_STRING_RE.findall(text)))[:400],
+    }
+
+
+def build_typescript_graph(
+    root: Path, files: list[Path], cache: FactsCache | None = None
+) -> dict[str, TsModule]:
     modules: dict[str, TsModule] = {}
+    facts_by_key: dict[str, dict[str, Any]] = {}
     for path in files:
         rel = path.resolve().relative_to(root.resolve()).as_posix()
         key = _ts_key(rel)
         text = _read(path)
-        exports = TS_EXPORT_FN_RE.findall(text)
-        for group in TS_EXPORT_NAMED_RE.findall(text):
-            exports.extend(_split_names(group))
-        modules[key] = TsModule(key=key, rel_path=rel, exports=list(dict.fromkeys(exports)))
+        digest = sha256_text(text)
+        facts = cache.get(rel, digest) if cache is not None else None
+        if facts is None or facts.get("v") != FACTS_VERSION:
+            facts = extract_ts_facts(text)
+            if cache is not None:
+                cache.put(rel, digest, facts)
+        modules[key] = TsModule(
+            key=key,
+            rel_path=rel,
+            exports=list(facts.get("exports", [])),
+            dynamic_import=bool(facts.get("dynamic_import", False)),
+            strings=set(facts.get("strings", [])),
+            digest=digest,
+        )
+        facts_by_key[key] = facts
 
     known = set(modules)
     for module in modules.values():
-        text = _read(root / module.rel_path)
-        for spec in TS_IMPORT_RE.findall(text):
+        facts = facts_by_key[module.key]
+        for spec in facts.get("imports", []):
             target = _resolve_ts_spec(module.rel_path, spec, known)
             if target:
                 module.imports.add(target)
-        for names, spec in TS_IMPORT_NAMED_RE.findall(text):
+        for names, spec in facts.get("named", []):
             target = _resolve_ts_spec(module.rel_path, spec, known)
             if target and target in modules:
-                modules[target].imported_names.update(_split_names(names))
-        for spec in TS_IMPORT_STAR_RE.findall(text):
+                modules[target].imported_names.update(names)
+        for spec in facts.get("star", []):
             target = _resolve_ts_spec(module.rel_path, spec, known)
             if target and target in modules:
                 modules[target].namespace_imported = True
@@ -291,7 +495,6 @@ def _resolve_ts_spec(from_rel: str, spec: str, known: set[str]) -> str | None:
         Path(*base.parts).as_posix(),
         (Path(*base.parts) / "index").as_posix(),
     ]
-    # Normalize .. and .
     resolved: list[str] = []
     for candidate in candidates:
         parts: list[str] = []
@@ -303,6 +506,9 @@ def _resolve_ts_spec(from_rel: str, spec: str, known: set[str]) -> str | None:
                 parts.append(part)
         resolved.append("/".join(parts))
     for candidate in resolved:
+        stripped = _ts_key(candidate)
+        if stripped in known:
+            return stripped
         if candidate in known:
             return candidate
     return None
@@ -312,16 +518,9 @@ def _split_names(group: str) -> list[str]:
     names: list[str] = []
     for part in group.split(","):
         token = part.strip()
-        if not token or token.startswith("type "):
-            token = token.removeprefix("type ").strip()
+        if token.startswith("type "):
+            token = token[len("type ") :].strip()
         token = token.split(" as ")[0].strip()
         if token:
             names.append(token)
     return names
-
-
-def _read(path: Path) -> str:
-    try:
-        return Path(path).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return ""

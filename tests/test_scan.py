@@ -53,7 +53,9 @@ def test_finding_json_shape() -> None:
         evidence=["no importers"],
     )
     payload = finding.to_dict()
-    assert set(payload) == {"id", "kind", "severity", "path", "symbol", "why", "evidence"}
+    assert set(payload) == {
+        "id", "kind", "severity", "path", "symbol", "why", "evidence", "confidence", "signals",
+    }
 
 
 def test_mcp_scan_tool() -> None:
@@ -65,7 +67,14 @@ def test_mcp_scan_tool() -> None:
     assert init and init["result"]["serverInfo"]["name"] == "unreach"
     listed = handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, session)
     names = {tool["name"] for tool in listed["result"]["tools"]}
-    assert names == {"unreach.scan", "unreach.explain", "unreach.plan"}
+    assert names == {
+        "unreach.scan",
+        "unreach.explain",
+        "unreach.plan",
+        "unreach.workflow",
+        "unreach.remember",
+        "unreach.memory",
+    }
     called = handle_request(
         {
             "jsonrpc": "2.0",
@@ -73,7 +82,7 @@ def test_mcp_scan_tool() -> None:
             "method": "tools/call",
             "params": {
                 "name": "unreach.scan",
-                "arguments": {"path": str(DEADAPP), "mock": True},
+                "arguments": {"path": str(DEADAPP), "mock": True, "memory": False},
             },
         },
         session,

@@ -20,6 +20,8 @@ def canned_findings() -> list[Finding]:
                 "fixture mock: no importer of pkg.orphan",
                 "not an entry file",
             ],
+            confidence=0.92,
+            signals={"no_importers": 0.0},
         ),
         Finding(
             id=finding_id("unused_export", "pkg/exports.py", "dead_symbol"),
@@ -32,6 +34,8 @@ def canned_findings() -> list[Finding]:
                 "defined in pkg/exports.py",
                 "pkg.app imports live_symbol only",
             ],
+            confidence=0.88,
+            signals={"not_imported_by_name": 0.0},
         ),
     ]
 
@@ -51,17 +55,8 @@ def default_mock_root() -> Path | None:
 
 def ensure_mock_findings(root: Path, findings: list[Finding]) -> list[Finding]:
     """Guarantee the fixture demo findings appear when --mock is set."""
-    if not looks_like_deadapp(root) and not any(
-        f.kind == "unused_export" and f.symbol == "dead_symbol" for f in findings
-    ):
-        extra = canned_findings()
-        ids = {f.id for f in findings}
-        for finding in extra:
-            if finding.id not in ids:
-                findings.append(finding)
-        return findings
     ids = {f.id for f in findings}
     for finding in canned_findings():
-        if finding.id not in ids and looks_like_deadapp(root):
+        if finding.id not in ids:
             findings.append(finding)
     return findings

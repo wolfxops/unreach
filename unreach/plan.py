@@ -30,6 +30,7 @@ class PlanStep:
     reason: str
     finding_id: str
     severity: str
+    confidence: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -38,7 +39,7 @@ class PlanStep:
 def build_plan(findings: list[Finding]) -> list[PlanStep]:
     ranked = sorted(
         findings,
-        key=lambda f: (KIND_ORDER.get(f.kind, 9), 0 if f.severity == "block" else 1, f.path, f.symbol or ""),
+        key=lambda f: (KIND_ORDER.get(f.kind, 9), -f.confidence, f.path, f.symbol or ""),
     )
     steps: list[PlanStep] = []
     for index, finding in enumerate(ranked, start=1):
@@ -57,6 +58,8 @@ def build_plan(findings: list[Finding]) -> list[PlanStep]:
             reason = f"Consider dropping `{finding.symbol}` from `{finding.path}`. {finding.why}"
         else:
             reason = finding.why
+        if finding.severity != "block":
+            reason += f" Confidence {finding.confidence:.2f}: verify before acting."
         steps.append(
             PlanStep(
                 order=index,
@@ -66,6 +69,7 @@ def build_plan(findings: list[Finding]) -> list[PlanStep]:
                 reason=reason,
                 finding_id=finding.id,
                 severity=finding.severity,
+                confidence=finding.confidence,
             )
         )
     return steps

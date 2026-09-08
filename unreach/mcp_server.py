@@ -1,4 +1,8 @@
-"""Stdio MCP server: unreach.scan, unreach.explain, unreach.plan."""
+"""Stdio MCP server.
+
+Tools: unreach.scan, unreach.explain, unreach.plan, unreach.workflow,
+unreach.remember, unreach.memory. One engine; the plugins only point here.
+"""
 
 from __future__ import annotations
 
@@ -8,36 +12,42 @@ from pathlib import Path
 from typing import Any
 
 from unreach import __version__
+from unreach.confidence import DEFAULT_MIN_CONFIDENCE
 from unreach.explain import explain as explain_finding
+from unreach.memory import DECISIONS, Memory
 from unreach.mock import default_mock_root
 from unreach.plan import plan_payload
-from unreach.scan import Finding, find_by_id, scan_path
+from unreach.scan import ScanResult, find_by_id, scan_repo
+from unreach.workflow import build_workflow
 
 PROTOCOL_VERSION = "2024-11-05"
+
+_PATH_PROPS = {
+    "path": {"type": "string", "description": "Repository or subdirectory to scan. Defaults to cwd."},
+    "mock": {"type": "boolean", "description": "Fixture mode. No API keys required."},
+    "lang": {"type": "string", "enum": ["auto", "py", "ts"], "description": "Language filter."},
+    "min_confidence": {
+        "type": "number",
+        "description": f"Drop findings below this confidence (default {DEFAULT_MIN_CONFIDENCE}).",
+    },
+    "memory": {"type": "boolean", "description": "Use .unreach/memory.json (default true)."},
+}
 
 TOOLS = [
     {
         "name": "unreach.scan",
         "description": (
-            "Deterministic dead-code scan (unused exports, orphan files, unused deps). "
-            "Does not use an LLM. Never deletes files."
+            "Deterministic dead-code scan with confidence scores (unused exports, orphan files, "
+            "unused deps). No LLM. Never deletes files. By default returns a compact packet: full "
+            "evidence for NEW findings, one-liners for findings already seen in memory, and omits "
+            "findings you previously marked keep/false_positive."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Repository or subdirectory to scan. Defaults to cwd.",
-                },
-                "mock": {
-                    "type": "boolean",
-                    "description": "Use mock/fixture mode. No API keys required.",
-                },
-                "lang": {
-                    "type": "string",
-                    "enum": ["auto", "py", "ts"],
-                    "description": "Language filter. Default auto.",
-                },
+                **_PATH_PROPS,
+                "only_new": {"type": "boolean", "description": "Return only findings not seen before."},
+                "full": {"type": "boolean", "description": "Return full evidence for every finding."},
             },
         },
     },
@@ -49,24 +59,55 @@ TOOLS = [
         ),
         "inputSchema": {
             "type": "object",
-            "properties": {
-                "id": {"type": "string", "description": "Finding id from unreach.scan"},
-                "path": {"type": "string"},
-                "mock": {"type": "boolean"},
-            },
+            "properties": {"id": {"type": "string", "description": "Finding id"}, **_PATH_PROPS},
             "required": ["id"],
         },
     },
     {
         "name": "unreach.plan",
+        "description": "Ordered deletion/refactor suggestions ranked by confidence. Never writes files.",
+        "inputSchema": {"type": "object", "properties": _PATH_PROPS},
+    },
+    {
+        "name": "unreach.workflow",
         "description": (
-            "Ordered deletion/refactor suggestions. Never writes or deletes files."
+            "Language- and framework-aware agent workflow for the current findings: exact files to "
+            "read, grep patterns, validation commands, and a remember step. Follow it instead of "
+            "crawling the repo."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
+                **_PATH_PROPS,
+                "max_findings": {"type": "integer", "description": "Cap findings in the workflow (default 12)."},
+            },
+        },
+    },
+    {
+        "name": "unreach.remember",
+        "description": (
+            "Store a decision for a finding in .unreach/memory.json so future scans skip it: "
+            "keep (intentional), false_positive, or resolved."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "decision": {"type": "string", "enum": list(DECISIONS)},
+                "note": {"type": "string"},
                 "path": {"type": "string"},
-                "mock": {"type": "boolean"},
+            },
+            "required": ["id", "decision"],
+        },
+    },
+    {
+        "name": "unreach.memory",
+        "description": "Summarize repository memory: runs, cached files, open findings, decisions.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "clear": {"type": "boolean", "description": "Delete the memory file."},
             },
         },
     },
@@ -75,8 +116,7 @@ TOOLS = [
 
 class Session:
     def __init__(self) -> None:
-        self.findings: list[Finding] = []
-        self.path: str = str(Path.cwd())
+        self.result: ScanResult | None = None
 
 
 def handle_request(message: dict[str, Any], session: Session) -> dict[str, Any] | None:
@@ -129,36 +169,66 @@ def handle_request(message: dict[str, Any], session: Session) -> dict[str, Any] 
 
 def dispatch_tool(name: str, arguments: dict[str, Any], session: Session) -> str:
     if name == "unreach.scan":
-        path, mock, lang = _scan_args(arguments)
-        session.findings = scan_path(path, mock=mock, lang=lang)
-        session.path = str(path)
-        from unreach.render import render_scan
-
-        return render_scan(session.findings, path=str(path), fmt="json")
+        result = _scan(arguments, session)
+        only_new = bool(arguments.get("only_new", False))
+        compact = not bool(arguments.get("full", False))
+        return json.dumps(result.to_dict(compact=compact, only_new=only_new), indent=2)
     if name == "unreach.plan":
-        path, mock, lang = _scan_args(arguments)
-        session.findings = scan_path(path, mock=mock, lang=lang)
-        session.path = str(path)
-        return json.dumps(plan_payload(session.findings, path=str(path)), indent=2)
+        result = _scan(arguments, session)
+        return json.dumps(plan_payload(result.findings, path=result.path), indent=2)
+    if name == "unreach.workflow":
+        result = _scan(arguments, session)
+        payload = build_workflow(
+            result.profile,
+            result.findings,
+            delta=result.delta.to_dict(),
+            max_findings=int(arguments.get("max_findings") or 12),
+        )
+        return json.dumps(payload, indent=2)
     if name == "unreach.explain":
         finding_id = arguments.get("id")
         if not finding_id:
             raise ValueError("id is required")
-        path, mock, lang = _scan_args(arguments)
-        if not session.findings:
-            session.findings = scan_path(path, mock=mock, lang=lang)
-            session.path = str(path)
-        finding = find_by_id(session.findings, str(finding_id))
+        result = session.result or _scan(arguments, session)
+        finding = find_by_id(result.findings + result.suppressed, str(finding_id))
         if finding is None:
-            session.findings = scan_path(path, mock=mock, lang=lang)
-            finding = find_by_id(session.findings, str(finding_id))
+            result = _scan(arguments, session)
+            finding = find_by_id(result.findings + result.suppressed, str(finding_id))
         if finding is None:
             raise ValueError(f"unknown finding id: {finding_id}")
         return explain_finding(finding)
+    if name == "unreach.remember":
+        finding_id = arguments.get("id")
+        decision = arguments.get("decision")
+        if not finding_id or not decision:
+            raise ValueError("id and decision are required")
+        root, _, _, _, _ = _scan_args(arguments)
+        mem = Memory(root)
+        entry = mem.remember(str(finding_id), str(decision), str(arguments.get("note") or ""))
+        mem.save()
+        session.result = None
+        return json.dumps({"id": finding_id, **entry, "memory": str(mem.path)}, indent=2)
+    if name == "unreach.memory":
+        root, _, _, _, _ = _scan_args(arguments)
+        mem = Memory(root)
+        if arguments.get("clear"):
+            mem.clear()
+            session.result = None
+            return json.dumps({"cleared": str(mem.path)})
+        payload = mem.summary()
+        payload["decisions"] = mem.decisions()
+        return json.dumps(payload, indent=2)
     raise ValueError(f"unknown tool: {name}")
 
 
-def _scan_args(arguments: dict[str, Any]) -> tuple[Path, bool, str]:
+def _scan(arguments: dict[str, Any], session: Session) -> ScanResult:
+    root, mock, lang, min_confidence, memory = _scan_args(arguments)
+    result = scan_repo(root, mock=mock, lang=lang, memory=memory, min_confidence=min_confidence)
+    session.result = result
+    return result
+
+
+def _scan_args(arguments: dict[str, Any]) -> tuple[Path, bool, str, float, bool]:
     mock = bool(arguments.get("mock", False))
     raw = arguments.get("path")
     if raw:
@@ -168,7 +238,9 @@ def _scan_args(arguments: dict[str, Any]) -> tuple[Path, bool, str]:
     else:
         path = Path.cwd()
     lang = str(arguments.get("lang") or "auto")
-    return path, mock, lang
+    min_confidence = float(arguments.get("min_confidence") or DEFAULT_MIN_CONFIDENCE)
+    memory = bool(arguments.get("memory", True))
+    return path, mock, lang, min_confidence, memory
 
 
 def _read_message(stdin) -> dict[str, Any] | None:
