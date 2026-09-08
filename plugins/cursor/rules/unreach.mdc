@@ -4,7 +4,31 @@ globs:
   - "**/*.py"
   - "**/*.ts"
   - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.vue"
+  - "**/*.svelte"
+  - "**/*.go"
+  - "**/*.rs"
+  - "**/*.java"
+  - "**/*.kt"
+  - "**/*.scala"
+  - "**/*.cs"
+  - "**/*.rb"
+  - "**/*.php"
+  - "**/*.swift"
+  - "**/*.dart"
+  - "**/*.ex"
+  - "**/*.exs"
+  - "**/*.c"
+  - "**/*.cc"
+  - "**/*.cpp"
+  - "**/*.h"
+  - "**/*.hpp"
+  - "**/*.lua"
+  - "**/*.pm"
+  - "**/*.pl"
 alwaysApply: false
 ---
 
-Do not guess unused or orphan code. Call MCP `unreach.scan`, then `unreach.workflow`, and follow its steps. Only `block` findings (confidence ≥ 0.85) are actionable without verification. Never delete files unless the user explicitly approves after the validate steps pass. Record each reviewed finding with `unreach.remember`.
+Do not guess unused or orphan code. Call MCP `unreach.scan`, then `unreach.workflow`, and follow its steps in order, reading only the files it names. Only `block` findings (confidence ≥ 0.85) are actionable without deeper verification; `warn` findings carry a triage verdict and signals to check first. Never delete files unless the user explicitly approves after the validate steps pass. Record each reviewed finding with `unreach.remember`.
