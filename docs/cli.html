@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CLI — Unreach</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand" href="index.html">Unreach</a>
+      <nav>
+        <a href="install.html">Install</a>
+        <a href="cli.html">CLI</a>
+        <a href="plugins.html">Plugins</a>
+      </nav>
+    </header>
+
+    <h1>CLI</h1>
+    <pre><code>unreach scan [PATH] [--mock] [--format json|md] [--lang auto|py|ts]
+unreach plan [PATH] [--mock]
+unreach mcp
+unreach explain FINDING_ID</code></pre>
+
+    <h2>Exit codes</h2>
+    <ul class="plain">
+      <li><code>0</code> — no high-confidence (<code>block</code>) dead code</li>
+      <li><code>1</code> — one or more <code>block</code> findings</li>
+      <li><code>2</code> — tool error</li>
+    </ul>
+
+    <h2>Finding schema</h2>
+    <pre><code>Finding(
+  id: str,
+  kind: str,          # unused_export | orphan_file | unused_dep | unreachable
+  severity: str,      # block | warn | note
+  path: str,
+  symbol: str | None,
+  why: str,
+  evidence: list[str],
+)</code></pre>
+    <p><code>block</code> is high confidence. Guessed findings stay <code>warn</code> or <code>note</code>. Python is first-class; TypeScript import graph is best-effort.</p>
+
+    <h2>Plan</h2>
+    <p><code>unreach plan</code> and MCP <code>unreach.plan</code> return an ordered list. Unreach never deletes files and never writes a patch in v0.</p>
+
+    <h2>Explain</h2>
+    <p>Optional OpenAI-compatible HTTP if <code>UNREACH_API_KEY</code> or <code>OPENAI_API_KEY</code> is set. Otherwise a heuristic paragraph. No vendor SDKs.</p>
+
+    <footer class="site">
+      Apache-2.0 · Vivek Singh
+    </footer>
+  </div>
+</body>
+</html>

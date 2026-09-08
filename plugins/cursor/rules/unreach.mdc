@@ -1,0 +1,10 @@
+---
+description: Dead-code detection. Always use Unreach MCP instead of guessing.
+globs:
+  - "**/*.py"
+  - "**/*.ts"
+  - "**/*.tsx"
+alwaysApply: false
+---
+
+Do not guess unused or orphan code. Call MCP `unreach.scan`, then `unreach.plan`. Never delete files unless the user explicitly asks after reviewing the plan.

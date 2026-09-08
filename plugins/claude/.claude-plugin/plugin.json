@@ -1,0 +1,9 @@
+{
+  "name": "unreach",
+  "version": "0.1.0",
+  "description": "Dead-code scan for Claude Code. When the user asks about unused, orphan, or unreachable code, call MCP unreach.scan then unreach.plan. Never delete files.",
+  "author": {
+    "name": "Vivek Singh",
+    "url": "https://x.com/wolfxops"
+  }
+}

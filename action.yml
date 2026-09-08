@@ -1,0 +1,39 @@
+name: Unreach Scan
+description: Find dead and unused code. Deterministic; never deletes files.
+author: Vivek Singh
+branding:
+  icon: search
+  color: purple
+inputs:
+  path:
+    description: Path to scan
+    required: false
+    default: "."
+  mock:
+    description: Run mock/fixture scan (no API keys)
+    required: false
+    default: "false"
+  format:
+    description: Output format (json or md)
+    required: false
+    default: json
+  lang:
+    description: Language filter (auto, py, ts)
+    required: false
+    default: auto
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Install Unreach
+      shell: bash
+      run: python -m pip install "${{ github.action_path }}"
+    - name: Scan
+      shell: bash
+      run: |
+        extra=()
+        if [ "${{ inputs.mock }}" = "true" ]; then extra+=(--mock); fi
+        unreach scan "${{ inputs.path }}" --format "${{ inputs.format }}" --lang "${{ inputs.lang }}" "${extra[@]}"

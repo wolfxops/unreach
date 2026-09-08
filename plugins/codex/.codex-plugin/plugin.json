@@ -1,0 +1,6 @@
+{
+  "name": "unreach",
+  "version": "0.1.0",
+  "description": "Dead-code scan for Codex. Stdio MCP: unreach mcp. Never delete files.",
+  "author": "Vivek Singh"
+}

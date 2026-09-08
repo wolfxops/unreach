@@ -1,0 +1,17 @@
+{
+  "name": "unreach",
+  "owner": {
+    "name": "Vivek Singh",
+    "url": "https://x.com/wolfxops"
+  },
+  "metadata": {
+    "description": "Dead-code scan for Claude, Cursor, and Codex."
+  },
+  "plugins": [
+    {
+      "name": "unreach",
+      "source": "./plugins/claude",
+      "description": "Find dead and unused code via the Unreach MCP."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "unreach",
+  "version": "0.1.0",
+  "description": "Dead-code scan for Cursor. Do not guess unused code; call the Unreach MCP.",
+  "author": {
+    "name": "Vivek Singh",
+    "url": "https://x.com/wolfxops"
+  },
+  "mcpServers": {
+    "unreach": {
+      "command": "unreach",
+      "args": ["mcp"]
+    }
+  }
+}

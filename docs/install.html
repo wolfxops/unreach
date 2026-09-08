@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install — Unreach</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand" href="index.html">Unreach</a>
+      <nav>
+        <a href="install.html">Install</a>
+        <a href="cli.html">CLI</a>
+        <a href="plugins.html">Plugins</a>
+      </nav>
+    </header>
+
+    <h1>Install</h1>
+    <p class="pitch">Python 3.10+. No vendor SDKs. No API keys for scan or plan.</p>
+
+    <h2>From source</h2>
+    <pre><code>git clone https://github.com/wolfxops/unreach.git
+cd unreach
+pip install -e ".[dev]"
+unreach scan --mock
+pytest -q</code></pre>
+
+    <h2>First win</h2>
+    <p>On the fixture repo:</p>
+    <pre><code>unreach scan fixtures/deadapp --mock</code></pre>
+    <p>You should see <code>pkg/orphan.py</code> as an <code>orphan_file</code> block and <code>dead_symbol</code> as an <code>unused_export</code> block. Exit code <code>1</code> means high-confidence dead code was found.</p>
+
+    <h2>MCP</h2>
+    <pre><code>unreach mcp</code></pre>
+    <p>Stdio JSON-RPC. Tools: <code>unreach.scan</code>, <code>unreach.explain</code>, <code>unreach.plan</code>.</p>
+
+    <h2>GitHub Action</h2>
+    <pre><code>- uses: wolfxops/unreach@main
+  with:
+    path: .
+    format: json</code></pre>
+
+    <footer class="site">
+      Apache-2.0 · Vivek Singh
+    </footer>
+  </div>
+</body>
+</html>

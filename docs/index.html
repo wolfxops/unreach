@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unreach — find the code your agents keep rewriting around</title>
+  <meta name="description" content="Dead-code scan for Claude, Cursor, and Codex.">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand" href="index.html">Unreach</a>
+      <nav>
+        <a href="install.html">Install</a>
+        <a href="cli.html">CLI</a>
+        <a href="plugins.html">Plugins</a>
+      </nav>
+    </header>
+
+    <h1>Unreach</h1>
+    <p class="pitch">Find the code your agents keep rewriting around.</p>
+    <p class="ph">Dead-code scan for Claude, Cursor, and Codex.</p>
+
+    <section>
+      <h2>Install</h2>
+      <pre><code>pip install -e .
+unreach scan --mock</code></pre>
+      <p class="note">`--mock` needs no API keys. The scan is deterministic. The model is optional and only used for <code>unreach explain</code>.</p>
+    </section>
+
+    <section>
+      <h2>Plugins</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Claude Code</h3>
+          <pre><code>/plugin marketplace add wolfxops/unreach
+/plugin install unreach</code></pre>
+          <p>When you ask about dead or unused code, the skill calls MCP <code>unreach.scan</code> then <code>unreach.plan</code>.</p>
+        </article>
+        <article class="card">
+          <h3>Cursor</h3>
+          <pre><code>{
+  "mcpServers": {
+    "unreach": {
+      "command": "unreach",
+      "args": ["mcp"]
+    }
+  }
+}</code></pre>
+          <p>Do not guess unused code. Point Cursor at <code>unreach mcp</code> and the plugin skill/rule.</p>
+        </article>
+        <article class="card">
+          <h3>Codex</h3>
+          <pre><code>[mcp_servers.unreach]
+command = "unreach"
+args = ["mcp"]</code></pre>
+          <p>Add that block to <code>~/.codex/config.toml</code>. Same stdio server, same findings.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>One engine</h2>
+      <p>One analyzer. Three manifests. Auto-delete is forbidden. <code>unreach.plan</code> returns an ordered list only.</p>
+      <p>
+        <a href="cli.html">CLI and finding schema</a>
+        ·
+        <a href="plugins.html">Plugin install details</a>
+        ·
+        <a href="https://github.com/wolfxops/unreach">GitHub</a>
+      </p>
+      <div class="house">
+        <span class="tag"><strong>Cosen</strong> runtime cost</span>
+        <span class="tag"><strong>Quorum</strong> pre-merge review</span>
+        <span class="tag"><strong>Unreach</strong> unused code in the editor</span>
+      </div>
+    </section>
+
+    <footer class="site">
+      Apache-2.0 · Vivek Singh · <a href="https://x.com/wolfxops">wolfxops</a> · Pune
+    </footer>
+  </div>
+</body>
+</html>

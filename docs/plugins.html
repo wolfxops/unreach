@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plugins — Unreach</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand" href="index.html">Unreach</a>
+      <nav>
+        <a href="install.html">Install</a>
+        <a href="cli.html">CLI</a>
+        <a href="plugins.html">Plugins</a>
+      </nav>
+    </header>
+
+    <h1>Plugins</h1>
+    <p class="pitch">Thin wrappers around one stdio MCP server. Same engine. No second scanner.</p>
+
+    <h2>Claude Code</h2>
+    <p>Manifest: <code>plugins/claude/.claude-plugin/plugin.json</code>. Skill tells the agent to call <code>unreach.scan</code> then <code>unreach.plan</code>.</p>
+    <pre><code>/plugin marketplace add wolfxops/unreach
+/plugin install unreach</code></pre>
+
+    <h2>Cursor</h2>
+    <p>Manifest: <code>plugins/cursor/.cursor-plugin/plugin.json</code>. Rule: do not guess unused code; call the MCP.</p>
+    <pre><code>{
+  "mcpServers": {
+    "unreach": {
+      "command": "unreach",
+      "args": ["mcp"]
+    }
+  }
+}</code></pre>
+
+    <h2>Codex</h2>
+    <p>See <code>plugins/codex/README.md</code>. Stdio command:</p>
+    <pre><code>unreach mcp</code></pre>
+    <pre><code>[mcp_servers.unreach]
+command = "unreach"
+args = ["mcp"]</code></pre>
+    <p>Place that in <code>~/.codex/config.toml</code>.</p>
+
+    <h2>MCP tools</h2>
+    <table>
+      <thead>
+        <tr><th>Tool</th><th>Input</th><th>Output</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>unreach.scan</code></td><td><code>{ path?: string }</code></td><td>findings JSON</td></tr>
+        <tr><td><code>unreach.explain</code></td><td><code>{ id: string }</code></td><td>paragraph</td></tr>
+        <tr><td><code>unreach.plan</code></td><td><code>{ path?: string }</code></td><td>ordered steps, no writes</td></tr>
+      </tbody>
+    </table>
+
+    <footer class="site">
+      Apache-2.0 · Vivek Singh
+    </footer>
+  </div>
+</body>
+</html>

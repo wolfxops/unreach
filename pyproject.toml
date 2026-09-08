@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unreach"
+version = "0.1.0"
+description = "Find the code your agents keep rewriting around."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Vivek Singh", email = "vicky.singh9616@gmail.com" }]
+requires-python = ">=3.10"
+keywords = ["dead-code", "mcp", "cli", "static-analysis", "claude", "cursor", "codex"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+unreach = "unreach.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/wolfxops/unreach"
+Documentation = "https://wolfxops.github.io/unreach/"
+Repository = "https://github.com/wolfxops/unreach"
+
+[tool.setuptools.packages.find]
+include = ["unreach*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

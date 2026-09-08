@@ -1,0 +1,3 @@
+[mcp_servers.unreach]
+command = "unreach"
+args = ["mcp"]
