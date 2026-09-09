@@ -1,4 +1,4 @@
-"""Unreach CLI: scan, plan, workflow, explain, remember, memory, mcp."""
+"""Unreach CLI: scan, judge, plan, workflow, triage, explain, remember, memory, languages, mcp."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from unreach.confidence import DEFAULT_MIN_CONFIDENCE
 from unreach.explain import explain as explain_finding
 from unreach.memory import DECISIONS, Memory
 from unreach.mock import default_mock_root
-from unreach.render import render_languages, render_plan, render_result, render_triage, render_workflow
+from unreach.render import render_judge, render_languages, render_plan, render_result, render_triage, render_workflow
 from unreach.scan import find_by_id, scan_repo, supported_languages
 from unreach.support import languages_payload
 from unreach.triage import triage
@@ -40,24 +40,28 @@ def _main(argv: list[str]) -> int:
 
     scan_p = sub.add_parser("scan", help="Deterministic dead-code scan with confidence scores")
     _add_common(scan_p)
-    scan_p.add_argument("--format", choices=("json", "md", "sarif"), default="md")
+    scan_p.add_argument("--format", choices=("json", "md", "sarif", "table"), default="md")
     scan_p.add_argument("--only-new", action="store_true", help="Show only findings not seen in memory")
     scan_p.add_argument("--compact", action="store_true", help="Persisting findings as one-liners (JSON)")
 
+    judge_p = sub.add_parser("judge", help="Judge/critic table: prosecution vs devil's advocate per finding, verdict, next check, security, effort")
+    _add_common(judge_p)
+    judge_p.add_argument("--format", choices=("table", "md", "json"), default="table")
+
     plan_p = sub.add_parser("plan", help="Ordered cleanup suggestions (never deletes)")
     _add_common(plan_p)
-    plan_p.add_argument("--format", choices=("json", "md"), default="md")
+    plan_p.add_argument("--format", choices=("json", "md", "table"), default="md")
 
     wf_p = sub.add_parser("workflow", help="Language-aware agent workflow for the current findings")
     _add_common(wf_p)
-    wf_p.add_argument("--format", choices=("json", "md"), default="md")
+    wf_p.add_argument("--format", choices=("json", "md", "table"), default="md")
     wf_p.add_argument("--max", type=int, default=12, help="Max findings to include")
     wf_p.add_argument("--no-triage", action="store_true", help="Skip triage verdicts (LLM or heuristic)")
     wf_p.add_argument("--no-llm", action="store_true", help="Use heuristic triage even if an API key is set")
 
     tri_p = sub.add_parser("triage", help="Budgeted LLM/heuristic second opinion on ambiguous (warn) findings; verdicts cached in memory")
     _add_common(tri_p)
-    tri_p.add_argument("--format", choices=("json", "md"), default="md")
+    tri_p.add_argument("--format", choices=("json", "md", "table"), default="md")
     tri_p.add_argument("--max-items", type=int, default=8, help="Max findings sent to the model per run")
     tri_p.add_argument("--no-llm", action="store_true", help="Heuristic verdicts only")
 
@@ -122,7 +126,11 @@ def _main(argv: list[str]) -> int:
         lang=args.lang,
         memory=not args.no_memory,
         min_confidence=args.min_confidence,
+        judge=not args.no_judge,
     )
+    if args.cmd == "judge":
+        sys.stdout.write(render_judge(result, fmt=args.format))
+        return _exit_code(result)
     if args.cmd == "scan":
         sys.stdout.write(
             render_result(result, fmt=args.format, only_new=args.only_new, compact=args.compact)
@@ -168,6 +176,7 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--lang", choices=supported_languages(), default="auto", metavar="LANG",
                         help="auto (default) or one of: " + ", ".join(supported_languages()[1:]))
     parser.add_argument("--no-memory", action="store_true", help="Do not read or write .unreach/memory.json")
+    parser.add_argument("--no-judge", action="store_true", help="Skip the judge/critic layer (raw scan confidence)")
     parser.add_argument(
         "--min-confidence",
         type=float,

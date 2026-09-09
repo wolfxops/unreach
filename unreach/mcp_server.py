@@ -1,8 +1,12 @@
 """Stdio MCP server.
 
-Tools: unreach.scan, unreach.explain, unreach.plan, unreach.workflow,
-unreach.triage, unreach.remember, unreach.memory, unreach.languages.
-One engine; the plugins only point here.
+Tools: unreach.scan, unreach.judge, unreach.explain, unreach.plan,
+unreach.workflow, unreach.triage, unreach.remember, unreach.memory,
+unreach.languages. One engine; the plugins only point here.
+
+Every tool accepts ``format: "json" | "table"``. Tables are GitHub-flavoured
+markdown, which Claude Code, Cursor and Codex render natively — that is the
+plugin-facing output for humans; JSON is for agents that post-process.
 """
 
 from __future__ import annotations
@@ -18,6 +22,7 @@ from unreach.explain import explain as explain_finding
 from unreach.memory import DECISIONS, Memory
 from unreach.mock import default_mock_root
 from unreach.plan import plan_payload
+from unreach.render import render_judge, render_plan_table, render_result_table, render_triage_table, render_workflow_table
 from unreach.scan import ScanResult, find_by_id, scan_repo, supported_languages
 from unreach.support import languages_payload
 from unreach.triage import triage
@@ -34,6 +39,8 @@ _PATH_PROPS = {
         "description": f"Drop findings below this confidence (default {DEFAULT_MIN_CONFIDENCE}).",
     },
     "memory": {"type": "boolean", "description": "Use .unreach/memory.json (default true)."},
+    "judge": {"type": "boolean", "description": "Run the judge/critic layer (default true). False = raw scan confidence."},
+    "format": {"type": "string", "enum": ["json", "table"], "description": "json (default for scan/plan/workflow/triage) or a markdown table for humans."},
 }
 
 TOOLS = [
@@ -51,6 +58,26 @@ TOOLS = [
                 **_PATH_PROPS,
                 "only_new": {"type": "boolean", "description": "Return only findings not seen before."},
                 "full": {"type": "boolean", "description": "Return full evidence for every finding."},
+            },
+        },
+    },
+    {
+        "name": "unreach.judge",
+        "description": (
+            "Judge/critic verdict per finding, as a markdown table by default. Prosecution = the scan's graph "
+            "evidence; devil's advocate = 30+ named counter-hypotheses checked against real repository artifacts "
+            "with file:line evidence (scheduled jobs, Dockerfile/Procfile/k8s entries, serverless handlers, CI and "
+            "Makefile invocations, reflection, plugin registries, templates, feature flags, platform guards, "
+            "generated code, migrations, public library surface, keep-markers, WIP hints); identification check "
+            "(generic names, stem collisions, star re-exports, parse failures); security lens (eval/exec, unsafe "
+            "deserialization, disabled TLS checks, exposed routes, secret-like literals — line numbers only); "
+            "effort estimate. Verdict remove | verify | keep with the one next check that settles it. Deterministic, no LLM."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **{k: v for k, v in _PATH_PROPS.items() if k != "format"},
+                "format": {"type": "string", "enum": ["table", "md", "json"], "description": "table (default) | md (table + case files) | json."},
             },
         },
     },
@@ -194,13 +221,21 @@ def handle_request(message: dict[str, Any], session: Session) -> dict[str, Any] 
 
 
 def dispatch_tool(name: str, arguments: dict[str, Any], session: Session) -> str:
+    fmt = str(arguments.get("format") or "json")
     if name == "unreach.scan":
         result = _scan(arguments, session)
         only_new = bool(arguments.get("only_new", False))
         compact = not bool(arguments.get("full", False))
+        if fmt == "table":
+            return render_result_table(result, only_new=only_new)
         return json.dumps(result.to_dict(compact=compact, only_new=only_new), indent=2)
+    if name == "unreach.judge":
+        result = _scan(arguments, session)
+        return render_judge(result, fmt=str(arguments.get("format") or "table"))
     if name == "unreach.plan":
         result = _scan(arguments, session)
+        if fmt == "table":
+            return render_plan_table(result.findings, path=result.path)
         return json.dumps(plan_payload(result.findings, path=result.path), indent=2)
     if name == "unreach.workflow":
         result = _scan(arguments, session)
@@ -215,6 +250,8 @@ def dispatch_tool(name: str, arguments: dict[str, Any], session: Session) -> str
             max_findings=int(arguments.get("max_findings") or 12),
             triage=verdicts,
         )
+        if fmt == "table":
+            return render_workflow_table(payload)
         return json.dumps(payload, indent=2)
     if name == "unreach.triage":
         result = _scan(arguments, session)
@@ -226,6 +263,8 @@ def dispatch_tool(name: str, arguments: dict[str, Any], session: Session) -> str
             max_items=int(arguments.get("max_items") or 8),
             use_llm=use_llm,
         )
+        if fmt == "table":
+            return render_triage_table(payload, result.findings)
         return json.dumps(payload, indent=2)
     if name == "unreach.languages":
         return json.dumps(languages_payload(), indent=2)
@@ -267,7 +306,8 @@ def dispatch_tool(name: str, arguments: dict[str, Any], session: Session) -> str
 
 def _scan(arguments: dict[str, Any], session: Session) -> ScanResult:
     root, mock, lang, min_confidence, memory = _scan_args(arguments)
-    result = scan_repo(root, mock=mock, lang=lang, memory=memory, min_confidence=min_confidence)
+    judge = bool(arguments.get("judge", True))
+    result = scan_repo(root, mock=mock, lang=lang, memory=memory, min_confidence=min_confidence, judge=judge)
     session.result = result
     return result
 

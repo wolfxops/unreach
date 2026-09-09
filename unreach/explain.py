@@ -41,14 +41,24 @@ def heuristic(finding: Finding) -> str:
         )
     if finding.evidence:
         bits.append("Evidence: " + "; ".join(e for e in finding.evidence if not e.startswith("signal ")) + ".")
+    if finding.critique:
+        bits.append(finding.critique["rationale"])
+        if finding.critique.get("next_check"):
+            bits.append("Next check: " + finding.critique["next_check"])
     bits.append("Unreach never deletes files; use `unreach workflow` for the verification steps.")
     return " ".join(bits)
 
 
 def _llm_explain(finding: Finding) -> str:
-    packet = {k: v for k, v in finding.to_dict().items() if k != "evidence"} | {
+    packet = {k: v for k, v in finding.to_dict().items() if k not in {"evidence", "critique"}} | {
         "evidence": [e for e in finding.evidence if not e.startswith("signal ")][:6]
     }
+    if finding.critique:
+        packet["judge"] = {
+            "verdict": finding.critique["verdict"],
+            "rationale": finding.critique["rationale"],
+            "next_check": finding.critique.get("next_check"),
+        }
     text, _usage = chat(
         [
             {

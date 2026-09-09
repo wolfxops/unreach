@@ -16,6 +16,7 @@
         <a href="cli.html">CLI</a>
         <a href="languages.html">Languages</a>
         <a href="confidence.html">Confidence</a>
+        <a href="judge.html">Judge</a>
         <a href="workflow.html">Workflow</a>
         <a href="memory.html">Memory</a>
         <a href="plugins.html">Plugins</a>
@@ -73,6 +74,18 @@
         <tr>
           <td><strong>"AI-powered" tools spend model tokens on things a graph already knows</strong>, and hallucinate on things it does not.</td>
           <td>The model never sees <code>block</code> (certain) or <code>note</code> (too weak) findings. It sees <code>warn</code> findings only, once, batched, as evidence packets without file bodies. Its job is ranking and second opinion, never detection. See <a href="workflow.html">Workflow</a>.</td>
+        </tr>
+        <tr>
+          <td><strong>Hidden live paths look unused.</strong> Cron jobs, Dockerfile <code>CMD</code>, Lambda handler strings, Makefile targets, feature flags, platform-gated files, generated code, applied migrations. Agents that delete these are fast and wrong.</td>
+          <td>The <a href="judge.html">judge / devil's advocate</a> checks 30+ named counter-hypotheses against real artifacts with <code>file:line</code> evidence, plus an identification check. Verdict <code>remove</code> / <code>verify</code> / <code>keep</code>. Never auto-delete.</td>
+        </tr>
+        <tr>
+          <td><strong>Dead code is also attack surface.</strong> Leftover <code>eval</code>, <code>pickle.loads</code>, <code>verify=False</code>, unused endpoints, secret-like literals sit outside the live path and the on-call dashboard.</td>
+          <td>Security lens reports marker + line number only (values redacted). <code>remove_first</code> findings go to the top of the workflow.</td>
+        </tr>
+        <tr>
+          <td><strong>Agent output is a wall of prose</strong> the developer cannot scan during a review.</td>
+          <td>Plugins render GitHub-flavoured markdown tables (<code>unreach.judge</code> / <code>format: "table"</code>): severity, judged confidence, devil's advocate, next check, security, effort.</td>
         </tr>
         <tr>
           <td><strong>Polyglot estates, single-language tools.</strong> Each service team runs a different scanner with a different output.</td>

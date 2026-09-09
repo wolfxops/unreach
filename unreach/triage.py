@@ -11,6 +11,11 @@ ranking and second-opinion on *ambiguous* (``warn``) findings. Policy:
   unchanged finding is never asked about again.
 * Without a key the same interface returns deterministic heuristic verdicts,
   so workflows behave identically offline.
+* The judge layer (``unreach.critic``) runs first and deterministically. Its
+  verdict, sustained objections and identification caveats travel in the packet,
+  and the model is asked to act as a *second* devil's advocate: name the
+  strongest reason the code could still be live that the judge missed, then
+  decide.
 
 Verdicts: ``likely_dead`` | ``verify`` | ``keep``.
 """
@@ -52,8 +57,29 @@ def evidence_digest(finding: Finding) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
+def judge_brief(finding: Finding) -> dict[str, Any] | None:
+    """Compact judge summary for the model: verdict plus where the defense found evidence."""
+    critique = finding.critique
+    if not critique:
+        return None
+    objections = [
+        f"{o['hypothesis']}@{o['evidence'][0]['where']}" if o.get("evidence") and not o["evidence"][0]["where"].endswith(":0") else o["hypothesis"]
+        for o in critique.get("objections", [])
+        if o.get("penalty", 0) > 0
+    ][:4]
+    caveats = [o["hypothesis"] for o in critique.get("identification", []) if o.get("penalty", 0) > 0][:3]
+    brief: dict[str, Any] = {"verdict": critique["verdict"], "checked": critique.get("hypotheses_checked", 0)}
+    if objections:
+        brief["objections"] = objections
+    if caveats:
+        brief["caveats"] = caveats
+    if critique.get("security", {}).get("markers"):
+        brief["security"] = [m["marker"] for m in critique["security"]["markers"][:3]]
+    return brief
+
+
 def packet(finding: Finding) -> dict[str, Any]:
-    return {
+    data: dict[str, Any] = {
         "id": finding.id,
         "kind": finding.kind,
         "path": finding.path,
@@ -62,9 +88,22 @@ def packet(finding: Finding) -> dict[str, Any]:
         "signals": finding.signals,
         "why": finding.why,
     }
+    brief = judge_brief(finding)
+    if brief:
+        data["judge"] = brief
+    return data
 
 
 def heuristic_verdict(finding: Finding) -> tuple[str, str]:
+    critique = finding.critique
+    if critique:
+        sustained = [o for o in critique.get("objections", []) if o.get("penalty", 0) > 0]
+        top = sustained[0]["hypothesis"] if sustained else None
+        if critique["verdict"] == "keep":
+            return "keep", f"judge: {top or 'defense'} sustained; treat as reachable until the named artifact says otherwise"
+        if critique["verdict"] == "remove":
+            return "likely_dead", f"judge: none of {critique.get('hypotheses_checked', 0)} counter-hypotheses held; validate, then propose removal"
+        return "verify", f"judge: {critique.get('next_check') or 'one targeted check settles it'}"
     names = {k for k, v in finding.signals.items() if v < 0}
     if names & STRONG_NEGATIVE:
         return "keep", "framework or entry-point signal present; treat as intentionally reachable until proven otherwise"
@@ -134,6 +173,8 @@ def triage(
                     reason = str(answer.get("reason", ""))[:300]
                     model = str(usage.get("model") or "llm")
                 entry = _entry(finding, verdict, reason, model)
+                if answer.get("counter"):
+                    entry["counter"] = str(answer["counter"])[:200]
                 store[finding.id] = entry
                 verdicts[finding.id] = entry
             to_ask = to_ask[len(batch):]
@@ -160,18 +201,22 @@ def _entry(finding: Finding, verdict: str, reason: str, model: str) -> dict[str,
 
 def _ask(batch: list[Finding]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     system = (
-        "You triage static dead-code findings. For each item decide one verdict: "
-        "likely_dead (safe to propose removal after tests), verify (needs a targeted check first), "
-        "or keep (probably reachable via framework/dynamic mechanisms). Use only the given signals; "
-        "do not assume you can see the code. Respond with JSON: "
-        '{"verdicts": {"<id>": {"verdict": "...", "reason": "<= 20 words"}}}'
+        "You are the second reviewer of static dead-code findings. A deterministic judge already checked "
+        "named counter-hypotheses (scheduled jobs, CLI/container/serverless entry points, CI scripts, reflection, "
+        "templates, plugin registries, feature flags, platform guards, generated code, public library surface) and "
+        "reports its verdict and evidence under `judge`. For each item, first play devil's advocate: name the single "
+        "strongest reason the code could still be live that the judge could have missed (be concrete: which mechanism, "
+        "which file to look in). Then decide one verdict: likely_dead (safe to propose removal after tests), verify "
+        "(a targeted check is needed first), or keep (probably reachable). Use only the given signals and judge notes; "
+        "you cannot see the code. Never recommend deleting anything automatically. Respond with JSON: "
+        '{"verdicts": {"<id>": {"counter": "<= 15 words", "verdict": "...", "reason": "<= 20 words"}}}'
     )
     text, usage = chat(
         [
             {"role": "system", "content": system},
             {"role": "user", "content": json.dumps({"items": [packet(f) for f in batch]})},
         ],
-        max_tokens=60 * len(batch) + 80,
+        max_tokens=90 * len(batch) + 80,
         json_mode=True,
     )
     try:

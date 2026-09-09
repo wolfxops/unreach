@@ -16,6 +16,7 @@
         <a href="cli.html">CLI</a>
         <a href="languages.html">Languages</a>
         <a href="confidence.html">Confidence</a>
+        <a href="judge.html">Judge</a>
         <a href="workflow.html">Workflow</a>
         <a href="memory.html">Memory</a>
         <a href="plugins.html">Plugins</a>
@@ -38,15 +39,17 @@ pip install -e ".[dev]"</code></pre></div></li>
       <li><span class="n">2</span><div><h4>First win: the fixture scan</h4><p>Offline, deterministic, exit code <code>1</code> because high-confidence dead code exists.</p>
 <pre><code>unreach scan --mock</code></pre>
 <p>You should see <code>pkg/orphan.py</code> as an <code>orphan_file</code> block (0.92), <code>dead_symbol</code> as an <code>unused_export</code> block (0.88), and <code>maybe_dead</code> as a <code>warn</code> (0.58) because its module is imported whole.</p></div></li>
-      <li><span class="n">3</span><div><h4>See the guided workflow</h4><p>Verify → edit → validate → remember steps, with triage verdicts (heuristic when no key is set).</p>
+      <li><span class="n">3</span><div><h4>See the judge table</h4><p>Prosecution vs devil's advocate. The fixture's <code>pkg/nightly.py</code> is a cron job, not dead code.</p>
+<pre><code>unreach judge --mock</code></pre></div></li>
+      <li><span class="n">4</span><div><h4>See the guided workflow</h4><p>Verify → edit → validate → remember steps, with judge and triage verdicts (heuristic when no key is set).</p>
 <pre><code>unreach workflow --mock</code></pre></div></li>
-      <li><span class="n">4</span><div><h4>Scan your own repository</h4><p>Languages and frameworks are detected automatically. Memory is created at <code>.unreach/memory.json</code>; add it to <code>.gitignore</code> or commit it to share decisions.</p>
+      <li><span class="n">5</span><div><h4>Scan your own repository</h4><p>Languages and frameworks are detected automatically. Memory is created at <code>.unreach/memory.json</code>; add it to <code>.gitignore</code> or commit it to share decisions.</p>
 <pre><code>cd ~/code/your-service
 unreach scan --format md
 unreach scan --format sarif &gt; unreach.sarif</code></pre></div></li>
-      <li><span class="n">5</span><div><h4>Connect your agent</h4><p>One stdio MCP server for Claude Code, Cursor and Codex.</p>
+      <li><span class="n">6</span><div><h4>Connect your agent</h4><p>One stdio MCP server for Claude Code, Cursor and Codex.</p>
 <pre><code>unreach mcp</code></pre>
-<p>Tools: <code>unreach.scan</code>, <code>unreach.workflow</code>, <code>unreach.triage</code>, <code>unreach.plan</code>, <code>unreach.explain</code>, <code>unreach.remember</code>, <code>unreach.memory</code>, <code>unreach.languages</code>. See <a href="plugins.html">Plugins</a>.</p></div></li>
+<p>Tools: <code>unreach.scan</code>, <code>unreach.judge</code>, <code>unreach.workflow</code>, <code>unreach.triage</code>, <code>unreach.plan</code>, <code>unreach.explain</code>, <code>unreach.remember</code>, <code>unreach.memory</code>, <code>unreach.languages</code>. Plugins show a markdown table. See <a href="plugins.html">Plugins</a>.</p></div></li>
     </ol>
 
     <h2>Optional: enable the model</h2>
