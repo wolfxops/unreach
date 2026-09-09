@@ -1,0 +1,2 @@
+# Nightly report job (kept for the judge/critic fixture).
+0 2 * * * cd /srv/deadapp && python -m pkg.nightly

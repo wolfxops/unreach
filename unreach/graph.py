@@ -64,6 +64,7 @@ class PyModule:
     has_main_guard: bool = False
     dynamic_import: bool = False
     has_module_getattr: bool = False
+    parse_ok: bool = True
     raw_imports: list[tuple[str, list[str], bool, bool]] = field(default_factory=list)
     digest: str = ""
 
@@ -190,6 +191,7 @@ def _apply_facts(module: PyModule, facts: dict[str, Any]) -> None:
     module.has_main_guard = bool(facts.get("has_main_guard", False))
     module.dynamic_import = bool(facts.get("dynamic_import", False))
     module.has_module_getattr = bool(facts.get("has_module_getattr", False))
+    module.parse_ok = bool(facts.get("parse_ok", True))
     module.raw_imports = [
         (str(item[0]), list(item[1]), bool(item[2]), bool(item[3]))
         for item in facts.get("imports", [])

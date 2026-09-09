@@ -10,10 +10,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from unreach import __version__, graph, polyglot
+from unreach import __version__, critic, graph, polyglot
 from unreach import confidence as conf
 from unreach.langs import PY_SUFFIXES, TS_SUFFIXES, Profile, detect_profile, file_role
 from unreach.memory import Delta, Memory
+from unreach.redact import SECRET_PATTERNS, redact_text  # noqa: F401 — re-exported for callers
 
 
 def supported_languages() -> list[str]:
@@ -50,18 +51,6 @@ SKIP_DIRS = {
     "DerivedData",
 }
 
-SECRET_PATTERNS = [
-    re.compile(r"sk-[A-Za-z0-9]{20,}"),
-    re.compile(r"AKIA[0-9A-Z]{16}"),
-    re.compile(r"ghp_[A-Za-z0-9]{36,}"),
-    re.compile(r"github_pat_[A-Za-z0-9_]{20,}"),
-    re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"),
-    re.compile(
-        r"(?i)(?:api[_-]?key|secret[_-]?key|access[_-]?token|password)\s*[=:]\s*['\"][^'\"]{8,}['\"]"
-    ),
-]
-
-
 @dataclass
 class Finding:
     id: str
@@ -73,6 +62,11 @@ class Finding:
     evidence: list[str] = field(default_factory=list)
     confidence: float = 0.0
     signals: dict[str, float] = field(default_factory=dict)
+    critique: dict[str, Any] | None = None
+
+    @property
+    def verdict(self) -> str | None:
+        return self.critique.get("verdict") if self.critique else None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -132,7 +126,8 @@ class ScanResult:
             }
         if brief:
             payload["persisting_brief"] = [
-                {"id": f.id, "severity": f.severity, "confidence": f.confidence} for f in brief
+                {"id": f.id, "severity": f.severity, "confidence": f.confidence, **({"verdict": f.verdict} if f.verdict else {})}
+                for f in brief
             ]
             full_size = len(json.dumps([f.to_dict() for f in brief]))
             brief_size = len(json.dumps(payload["persisting_brief"]))
@@ -143,13 +138,6 @@ class ScanResult:
                 for f in self.suppressed
             ]
         return payload
-
-
-def redact_text(text: str) -> str:
-    out = text
-    for pattern in SECRET_PATTERNS:
-        out = pattern.sub("[REDACTED]", out)
-    return out
 
 
 def finding_id(kind: str, path: str, symbol: str | None = None) -> str:
@@ -200,6 +188,7 @@ def scan_repo(
     memory: bool = True,
     min_confidence: float = conf.DEFAULT_MIN_CONFIDENCE,
     record: bool = True,
+    judge: bool = True,
 ) -> ScanResult:
     root = Path(path).resolve()
     if not root.exists():
@@ -218,7 +207,8 @@ def scan_repo(
         other_files = iter_source_files(root, polyglot.LANGS[lang].suffixes)
     else:
         other_files = []
-    profile = detect_profile(root, py_files, ts_files, other_files)
+    artifacts = critic.ArtifactIndex(root)
+    profile = detect_profile(root, py_files, ts_files, other_files, config_tokens=artifacts.config_tokens)
 
     findings: list[Finding] = []
     if py_files:
@@ -231,12 +221,19 @@ def scan_repo(
 
     findings = [_redact_finding(f) for f in findings]
     findings = _dedupe(findings)
+    # The threshold applies to the scanner's own confidence. The judge may lower a
+    # finding further, but it annotates rather than hides: a "keep" verdict with its
+    # evidence is exactly what the reviewer needs to see.
+    findings = [f for f in findings if f.confidence >= min_confidence]
+    if judge and findings:
+        source_rels = [rel_path(root, p) for p in (*py_files, *ts_files, *other_files)]
+        ctx = critic.build_context(root, profile, source_rels, artifacts=artifacts, parse_failures=profile.parse_failures)
+        findings = critic.judge_findings(findings, ctx)
     if mock:
         from unreach.mock import ensure_mock_findings
 
         findings = ensure_mock_findings(root, findings)
 
-    findings = [f for f in findings if f.confidence >= min_confidence]
     findings.sort(key=lambda f: (-f.confidence, f.kind, f.path, f.symbol or ""))
 
     if record and mem.enabled:
@@ -275,6 +272,7 @@ def _scan_python(root: Path, files: list[Path], profile: Profile, mem: Memory) -
     imported_modules = graph.imported_module_set(modules)
     repo_dynamic = any(m.dynamic_import for m in modules.values())
     profile.dynamic_import_anywhere = repo_dynamic
+    profile.parse_failures += sum(1 for m in modules.values() if not m.parse_ok)
     all_strings: set[str] = set()
     for module in modules.values():
         all_strings.update(module.strings)
@@ -754,6 +752,7 @@ def _redact_finding(finding: Finding) -> Finding:
         evidence=[redact_text(item) for item in finding.evidence],
         confidence=finding.confidence,
         signals=finding.signals,
+        critique=finding.critique,
     )
 
 

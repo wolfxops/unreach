@@ -6,9 +6,12 @@ before touching code. It is data, not prose: each step has an ``action``, an
 optional shell ``command`` or ``read`` target, and a ``why``.
 
 The workflow is deliberately token-frugal: it points the agent at the exact
-files and grep patterns to inspect instead of "read the repo". When triage
-verdicts are supplied (from ``unreach.triage``), ambiguous findings are ordered
-and annotated so the agent spends its reads where they matter.
+files and grep patterns to inspect instead of "read the repo". Each finding
+carries the judge's critique (``unreach.critic``): findings the judge ruled
+``keep`` are listed once and skipped, and the verify step for every other
+finding is the judge's ``next_check`` — the one artifact that settles the case.
+When triage verdicts are supplied (from ``unreach.triage``), ambiguous findings
+are additionally ordered and annotated by the model's second opinion.
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ class Step:
     tool: str | None = None
     budget_hint: str | None = None
     triage: str | None = None
+    judge: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if v not in (None, [], "")}
@@ -61,7 +65,10 @@ def build_workflow(
 
     def verdict_of(f: Finding) -> str | None:
         entry = verdicts.get(f.id)
-        return entry.get("verdict") if entry else None
+        if entry:
+            return entry.get("verdict")
+        judged = f.verdict
+        return {"remove": "likely_dead", "verify": "verify", "keep": "keep"}.get(judged) if judged else None
 
     new_ids = set((delta or {}).get("new", []))
     persisting_ids = set((delta or {}).get("persisting", []))
@@ -78,6 +85,8 @@ def build_workflow(
     )
     selected = [f for f in ranked if verdict_of(f) != "keep"][:max_findings]
     kept = [f.id for f in ranked if verdict_of(f) == "keep"]
+    kept_by_judge = [f.id for f in ranked if f.verdict == "keep"]
+    security_first = [f.id for f in selected if (f.critique or {}).get("security_priority") == "remove_first"]
 
     steps.append(
         Step(
@@ -98,9 +107,20 @@ def build_workflow(
             Step(
                 id=nxt("ctx"),
                 phase="verify",
-                action=f"Skip {len(kept)} finding(s) triaged as `keep` (framework or entry signals). Record them with unreach.remember if you agree.",
-                why="Triage already judged these reachable; re-verifying them is the most common token sink.",
+                action=f"Skip {len(kept)} finding(s) ruled `keep` by the judge/triage (a scheduler, entry point, registry, or flag names them). Record them with unreach.remember if you agree.",
+                why="The devil's advocate already found a plausible live path with file:line evidence; re-verifying is the most common token sink.",
                 budget_hint=", ".join(kept[:6]) + (" ..." if len(kept) > 6 else ""),
+                judge="; ".join(_judge_label(f) or "" for f in ranked if f.id in kept[:3]) or None,
+            )
+        )
+    if security_first:
+        steps.append(
+            Step(
+                id=nxt("ctx"),
+                phase="verify",
+                action=f"Handle {len(security_first)} finding(s) first: dead code that also carries a security marker (eval/exec, unsafe deserialization, disabled TLS checks, exposed routes, secret-like literals).",
+                why="Dead risky code is unmonitored attack surface and the cheapest security win in the backlog.",
+                budget_hint=", ".join(security_first[:6]) + (" ..." if len(security_first) > 6 else ""),
             )
         )
 
@@ -135,6 +155,9 @@ def build_workflow(
         },
         "selected_findings": [f.id for f in selected],
         "kept_by_triage": kept,
+        "kept_by_judge": kept_by_judge,
+        "security_first": security_first,
+        "quick_wins": [f.id for f in selected if (f.critique or {}).get("quick_win")],
         "omitted_findings": max(0, len(findings) - len(selected) - len(kept)),
         "steps": [s.to_dict() for s in steps],
     }
@@ -148,6 +171,27 @@ def _steps_for_finding(finding: Finding, profile: Profile, nxt, verdict: dict[st
     verdict_name = verdict.get("verdict") if verdict else None
     verdict_reason = verdict.get("reason") if verdict else None
     lang_name = LANGUAGE_NAMES.get(lang, lang)
+    critique = finding.critique or {}
+    sustained = [o for o in critique.get("objections", []) if o.get("penalty", 0) > 0]
+    if sustained and critique.get("next_check"):
+        evidence_files = []
+        for objection in sustained[:3]:
+            for ev in objection.get("evidence", [])[:2]:
+                rel = ev["where"].rsplit(":", 1)[0]
+                if not ev["where"].endswith(":0") and rel not in evidence_files:
+                    evidence_files.append(rel)
+        steps.append(
+            Step(
+                id=nxt("verify"),
+                phase="verify",
+                action=f"Judge's next check: {critique['next_check']}",
+                why=f"Devil's advocate sustained {len(sustained)} objection(s): " + ", ".join(o["hypothesis"] for o in sustained[:3]) + ".",
+                finding_id=finding.id,
+                read=evidence_files[:4],
+                budget_hint="Open only the cited file:line locations; the judge already scanned the rest of the repository's artifacts.",
+                judge=_judge_label(finding),
+            )
+        )
 
     if finding.kind == "orphan_file":
         grep_target = module if lang == "py" else _stem(finding.path)
@@ -205,6 +249,7 @@ def _steps_for_finding(finding: Finding, profile: Profile, nxt, verdict: dict[st
                 why=f"confidence {finding.confidence:.2f} ({finding.severity}). {finding.why}",
                 finding_id=finding.id,
                 triage=_triage_label(verdict_name, None),
+                judge=_judge_label(finding),
             )
         )
     elif finding.kind == "unused_export":
@@ -239,6 +284,7 @@ def _steps_for_finding(finding: Finding, profile: Profile, nxt, verdict: dict[st
                 why=f"confidence {finding.confidence:.2f} ({finding.severity}). {finding.why}",
                 finding_id=finding.id,
                 triage=_triage_label(verdict_name, None),
+                judge=_judge_label(finding),
             )
         )
     elif finding.kind == "unused_dep":
@@ -276,6 +322,21 @@ def _steps_for_finding(finding: Finding, profile: Profile, nxt, verdict: dict[st
             )
         )
     return steps
+
+
+def _judge_label(finding: Finding) -> str | None:
+    critique = finding.critique
+    if not critique:
+        return None
+    sustained = [o["hypothesis"] for o in critique.get("objections", []) if o.get("penalty", 0) > 0]
+    label = f"{critique['verdict']} {critique['confidence']:.2f}"
+    if abs(critique.get("raw_confidence", critique["confidence"]) - critique["confidence"]) >= 0.005:
+        label += f" (scan {critique['raw_confidence']:.2f})"
+    if sustained:
+        label += " — " + ", ".join(sustained[:3])
+    if critique.get("security_priority") == "remove_first":
+        label += " · security remove-first"
+    return label
 
 
 def _triage_label(verdict: str | None, reason: str | None) -> str | None:

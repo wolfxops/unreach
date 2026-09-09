@@ -54,7 +54,7 @@ def test_finding_json_shape() -> None:
     )
     payload = finding.to_dict()
     assert set(payload) == {
-        "id", "kind", "severity", "path", "symbol", "why", "evidence", "confidence", "signals",
+        "id", "kind", "severity", "path", "symbol", "why", "evidence", "confidence", "signals", "critique",
     }
 
 
@@ -69,6 +69,7 @@ def test_mcp_scan_tool() -> None:
     names = {tool["name"] for tool in listed["result"]["tools"]}
     assert names == {
         "unreach.scan",
+        "unreach.judge",
         "unreach.explain",
         "unreach.plan",
         "unreach.workflow",

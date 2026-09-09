@@ -245,6 +245,7 @@ class Profile:
     test_runner: str | None = None
     type_checker: str | None = None
     validate_commands: dict[str, list[str]] = field(default_factory=dict)
+    parse_failures: int = 0
 
     def to_dict(self) -> dict:
         data = asdict(self)
@@ -261,6 +262,8 @@ def detect_profile(
     py_files: list[Path],
     ts_files: list[Path],
     other_files: list[Path] | None = None,
+    *,
+    config_tokens: set[str] | None = None,
 ) -> Profile:
     profile = Profile()
     if py_files:
@@ -305,7 +308,7 @@ def detect_profile(
         runner = profile.test_runner or "npm test"
         cmds.append(f"npx {runner} run" if runner in {"vitest", "jest"} else runner)
         profile.validate_commands["ts"] = cmds
-    profile.config_tokens = _config_tokens(root)
+    profile.config_tokens = set(config_tokens) if config_tokens is not None else _config_tokens(root)
     return profile
 
 
