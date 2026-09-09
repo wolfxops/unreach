@@ -16,6 +16,7 @@
         <a href="cli.html" aria-current="page">CLI</a>
         <a href="languages.html">Languages</a>
         <a href="confidence.html">Confidence</a>
+        <a href="judge.html">Judge</a>
         <a href="workflow.html">Workflow</a>
         <a href="memory.html">Memory</a>
         <a href="plugins.html">Plugins</a>
@@ -27,14 +28,16 @@
 
   <main class="container page prose">
     <span class="eyebrow reveal">CLI reference</span>
-    <h1 class="reveal d1">One binary. Eight verbs.</h1>
-    <p class="lead reveal d2">Everything the MCP server exposes is also a command, so CI and humans see exactly what the agent sees.</p>
+    <h1 class="reveal d1">One binary. Nine verbs.</h1>
+    <p class="lead reveal d2">Everything the MCP server exposes is also a command, so CI and humans see exactly what the agent sees. Plugins render <code>--format table</code> as a native markdown table.</p>
 
-    <pre class="reveal d3"><code>unreach scan      [PATH] [--mock] [--format json|md|sarif] [--lang LANG]
-                         [--only-new] [--compact] [--min-confidence 0.25] [--no-memory]
-unreach plan      [PATH] [--format json|md]
-unreach workflow  [PATH] [--format json|md] [--max 12] [--no-triage] [--no-llm]
-unreach triage    [PATH] [--format json|md] [--max-items 8] [--no-llm]
+    <pre class="reveal d3"><code>unreach scan      [PATH] [--mock] [--format json|md|sarif|table] [--lang LANG]
+                         [--only-new] [--compact] [--min-confidence 0.25]
+                         [--no-memory] [--no-judge]
+unreach judge     [PATH] [--format table|md|json]
+unreach plan      [PATH] [--format json|md|table]
+unreach workflow  [PATH] [--format json|md|table] [--max 12] [--no-triage] [--no-llm]
+unreach triage    [PATH] [--format json|md|table] [--max-items 8] [--no-llm]
 unreach explain   FINDING_ID [PATH]
 unreach remember  FINDING_ID --decision keep|false_positive|resolved [--note ...] [--path PATH]
 unreach memory    [PATH] [--clear] [--forget FINDING_ID]
@@ -51,6 +54,8 @@ unreach mcp</code></pre>
         <tr><td><code>--compact</code></td><td>JSON: full evidence for new findings, one-liners for persisting ones, trimmed profile and memory summary, plus <code>tokens_saved_estimate</code>.</td></tr>
         <tr><td><code>--min-confidence</code></td><td>Drop findings below the threshold (default 0.25).</td></tr>
         <tr><td><code>--no-memory</code></td><td>Stateless run; do not read or write <code>.unreach/memory.json</code>.</td></tr>
+        <tr><td><code>--no-judge</code></td><td>Skip the devil's advocate pass; report raw scan confidence.</td></tr>
+        <tr><td><code>--format table</code></td><td>GitHub-flavoured markdown table (the plugin-facing format). <code>unreach judge</code> defaults to it.</td></tr>
         <tr><td><code>--no-llm</code></td><td>Force heuristic triage even if an API key is set.</td></tr>
         <tr><td><code>--max-items</code></td><td>Cap on findings sent to the model per <code>triage</code> run (default 8). Extra findings receive heuristic verdicts and are deferred.</td></tr>
       </tbody>
@@ -73,9 +78,10 @@ unreach mcp</code></pre>
   why: str,
   evidence: list[str],
   confidence: float,        # 0..1, deterministic
-  signals: dict[str, float] # named adjustments that produced the score
+  signals: dict[str, float],# named adjustments that produced the score
+  critique: dict | None     # judge verdict, objections, identification, security, effort
 )</code></pre>
-    <p><code>block</code> ≥ 0.85, <code>warn</code> ≥ 0.55, else <code>note</code>. See <a href="confidence.html">Confidence</a> for every signal.</p>
+    <p><code>block</code> ≥ 0.85, <code>warn</code> ≥ 0.55, else <code>note</code>. See <a href="confidence.html">Confidence</a> for every scan signal and <a href="judge.html">Judge</a> for the devil's advocate pass. The <code>--min-confidence</code> threshold applies to the <em>scan</em> score so a <code>keep</code> verdict cannot hide the finding.</p>
 
     <h2>Scan JSON envelope</h2>
     <pre><code>{
@@ -118,6 +124,9 @@ unreach mcp</code></pre>
            "skipped_block": 4, "skipped_note": 7, "deferred": 0, "model": "gpt-4o-mini",
            "prompt_tokens_estimate": 612 }
 }</code></pre>
+
+    <h2>Judge</h2>
+    <p><code>unreach judge</code> prints the due-diligence table: prosecution vs devil's advocate, identification, security lens, effort. Default format is <code>table</code>; <code>md</code> adds case-file write-ups; <code>json</code> is the machine envelope. See <a href="judge.html">Judge</a>.</p>
 
     <h2>Plan</h2>
     <p><code>unreach plan</code> returns an ordered suggestion list ranked by confidence. Unreach never deletes files and never writes a patch in v0.</p>

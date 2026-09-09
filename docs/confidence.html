@@ -16,6 +16,7 @@
         <a href="cli.html">CLI</a>
         <a href="languages.html">Languages</a>
         <a href="confidence.html" aria-current="page">Confidence</a>
+        <a href="judge.html">Judge</a>
         <a href="workflow.html">Workflow</a>
         <a href="memory.html">Memory</a>
         <a href="plugins.html">Plugins</a>
@@ -111,7 +112,7 @@
       </div>
       <div>
         <p>The FastAPI route is decorated with <code>@app.get</code>. Base 0.88 − 0.60 = 0.28 → <code>note</code>. It is still reported (an agent may want to know), but it can never fail CI, never appear as a deletion in the plan, and is never sent to a model.</p>
-        <p>Compare <code>pkg/hooks.py:maybe_dead</code> in the fixture: base 0.88 − 0.30 (module imported whole) = 0.58 → <code>warn</code>. That is exactly the ambiguous case the <a href="workflow.html">triage step</a> exists for.</p>
+        <p>Compare <code>pkg/hooks.py:maybe_dead</code> in the fixture: base 0.88 − 0.30 (module imported whole) = 0.58 → <code>warn</code>. That is exactly the ambiguous case the <a href="judge.html">judge</a> and <a href="workflow.html">triage step</a> exist for. The fixture's <code>pkg/nightly.py</code> is the other class: the graph says unused, the devil's advocate finds <code>ops/crontab:2</code>, and the verdict is <code>keep</code>.</p>
       </div>
     </div>
   </main>

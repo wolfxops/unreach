@@ -4,14 +4,16 @@ Find the code your agents keep rewriting around.
 
 Dead-code intelligence for Claude Code, Cursor, and Codex: a deterministic
 reachability graph across **16 languages** and **45 frameworks**, an explainable
-**confidence score** per finding, a **guided dynamic workflow** for the agent, a
+**confidence score** per finding, a **judge / devil's advocate** that checks
+hidden live paths (schedulers, entry points, flags) before anything is proposed,
+a **guided dynamic workflow** for the agent, a
 **budgeted LLM triage** step that is asked once and cached, and **long-term
 memory** so every following session costs fewer tokens.
 
 One engine, not three products:
 
 1. Deterministic CLI scanner (`unreach scan`)
-2. One stdio **MCP** server (`unreach.scan`, `unreach.workflow`, `unreach.triage`, `unreach.plan`, `unreach.explain`, `unreach.remember`, `unreach.memory`, `unreach.languages`)
+2. One stdio **MCP** server (`unreach.scan`, `unreach.judge`, `unreach.workflow`, `unreach.triage`, `unreach.plan`, `unreach.explain`, `unreach.remember`, `unreach.memory`, `unreach.languages`)
 3. Thin plugins: **Claude Code**, **Cursor**, **Codex**
 
 Detection does **not** require an LLM. The model only ranks and explains, and
@@ -25,7 +27,8 @@ Docs: https://wolfxops.github.io/unreach/
 ```bash
 pip install -e .
 unreach scan --mock        # fixture scan, no API keys, exit 1 (block findings present)
-unreach workflow --mock    # guided checklist with triage verdicts
+unreach judge --mock       # prosecution vs devil's advocate table
+unreach workflow --mock    # guided checklist with judge + triage verdicts
 unreach languages          # support matrix
 ```
 
@@ -51,6 +54,9 @@ keeps surfacing the same complaints. Each maps to a mechanism:
 | Enterprise wants code-scanning integration and an audit trail | `--format sarif`; decisions with notes in `.unreach/memory.json` |
 | Agents re-read the repo every session and burn tokens | **Compact packets** (−58% on a repeat visit, measured on the fixture); parse cache by content hash; workflow names exact files |
 | "AI" tools spend model tokens on what a graph already knows | **Budgeted triage**: model sees `warn` findings only, once, batched, as evidence packets; verdicts cached by evidence digest |
+| Agents delete a scheduler job / Lambda handler / feature-flagged module | **Judge layer**: 30+ named counter-hypotheses with `file:line` evidence; verdict `remove` / `verify` / `keep`; identification check; never auto-delete |
+| Dead code is also risky (eval, pickle, `verify=False`, leftover secrets) | **Security lens**: markers reported by line number only; `remove_first` goes to the top of the workflow |
+| Agent output is a wall of prose the developer cannot scan | **Tabular plugin output** (`--format table` / MCP `unreach.judge`): severity, confidence, devil's advocate, next check, security, effort |
 | Polyglot estates, single-language tools | One `Finding` shape across 16 languages with **declared graph precision** |
 
 ## Languages and frameworks
@@ -75,11 +81,13 @@ language is one entry in `unreach/polyglot.py`.
 ## CLI
 
 ```bash
-unreach scan      [PATH] [--mock] [--format json|md|sarif] [--lang LANG]
-                         [--only-new] [--compact] [--min-confidence 0.25] [--no-memory]
-unreach plan      [PATH] [--format json|md]              # ordered suggestions, never deletes
-unreach workflow  [PATH] [--format json|md] [--max 12] [--no-triage] [--no-llm]
-unreach triage    [PATH] [--format json|md] [--max-items 8] [--no-llm]
+unreach scan      [PATH] [--mock] [--format json|md|sarif|table] [--lang LANG]
+                         [--only-new] [--compact] [--min-confidence 0.25]
+                         [--no-memory] [--no-judge]
+unreach judge     [PATH] [--format table|md|json]    # devil's advocate table (default)
+unreach plan      [PATH] [--format json|md|table]    # ordered suggestions, never deletes
+unreach workflow  [PATH] [--format json|md|table] [--max 12] [--no-triage] [--no-llm]
+unreach triage    [PATH] [--format json|md|table] [--max-items 8] [--no-llm]
 unreach explain   FINDING_ID [PATH]                      # optional LLM; heuristic if no key
 unreach remember  FINDING_ID --decision keep|false_positive|resolved [--note ...] [--path PATH]
 unreach memory    [PATH] [--clear] [--forget FINDING_ID]
@@ -103,6 +111,7 @@ Finding(
   evidence: list[str],
   confidence: float,         # 0..1, deterministic
   signals: dict[str, float], # named adjustments that produced the score
+  critique: dict | None,     # judge: verdict, objections, identification, security, effort
 )
 ```
 
@@ -125,7 +134,29 @@ Base by kind (`orphan_file` 0.92, `unused_export` 0.88, `unused_dep` 0.60,
 | `<lang>_path_resolved_graph` | −0.03 |
 | `stable_across_runs` (from memory) | up to +0.03 |
 
-`block` ≥ 0.85, `warn` ≥ 0.55, else `note`. Findings below `--min-confidence` (0.25) are dropped.
+`block` ≥ 0.85, `warn` ≥ 0.55, else `note`. Findings below `--min-confidence` (0.25)
+are dropped *before* the judge so a `keep` verdict cannot hide the evidence.
+
+### Judge / devil's advocate
+
+`unreach judge` / MCP `unreach.judge` is a second deterministic pass. The scan is
+the prosecution; the critic checks named counter-hypotheses against real artifacts
+and returns `file:line` evidence:
+
+- **Schedulers** — crontab, celery beat, k8s CronJob, workflow `schedule:`, systemd timers
+- **Hidden entry points** — Dockerfile/Procfile/compose, serverless handler strings, `python -m`, package `bin`, CI/Make targets, IDE launch configs
+- **Dynamic loading** — importlib/getattr/Class.forName, plugin registries, side-effect imports, templates
+- **Dormant ≠ dead** — feature flags, platform/`#[cfg]` guards, generated code, migrations, deprecation windows, WIP/git-new files
+- **Identification** — generic names, stem collisions, `export *` barrels, parse failures, JS/TS workspace imports
+- **Security lens** — eval/exec, unsafe deserialization, disabled TLS checks, exposed routes, secret-like literals (line numbers only; values redacted)
+- **Effort** — trivial / small / large plus a minutes hint; `remove` + trivial = `quick win`
+
+Verdicts: `remove` (propose after validation), `verify` (one named check), `keep`
+(a plausible live path exists). Confidence is adjusted; scan signals already
+priced are not counted twice. Plugins render the result as a markdown table.
+
+The fixture adds `pkg/nightly.py` (keep — `ops/crontab:2`) and
+`pkg/legacy_export.py` (remove_first — `pickle.loads` on line 7).
 
 ### Guided workflow and LLM budget
 
@@ -169,9 +200,11 @@ triage verdicts).
 
 The fixture `fixtures/deadapp` produces:
 
-- `pkg/orphan.py` — `orphan_file` / `block` 0.92
-- `dead_symbol` — `unused_export` / `block` 0.88
-- `maybe_dead` — `unused_export` / `warn` 0.58 (module imported whole)
+- `pkg/orphan.py` — `orphan_file` / `block` 0.92 / judge `remove` (quick win)
+- `dead_symbol` — `unused_export` / `block` 0.88 / judge `remove` (quick win)
+- `maybe_dead` — `unused_export` / `warn` 0.58 / judge `verify` (module imported whole)
+- `pkg/nightly.py` — `orphan_file` / scan warn, judge `keep` (`scheduled_job` @ `ops/crontab:2`)
+- `pkg/legacy_export.py` — `orphan_file` / `block` 0.92 / judge `remove_first` (`pickle.loads` L7)
 
 ## MCP
 
@@ -181,9 +214,10 @@ unreach mcp
 
 | Tool | Input | Output |
 |---|---|---|
-| `unreach.scan` | `{ path?, lang?, only_new?, full?, min_confidence?, memory? }` | findings JSON with confidence; compact by default |
-| `unreach.workflow` | `{ path?, max_findings?, triage? }` | verify/edit/validate/remember steps ordered by triage; `llm` budget report |
-| `unreach.triage` | `{ path?, max_items?, llm? }` | verdicts for warn findings; one batched call max; cached |
+| `unreach.scan` | `{ path?, lang?, only_new?, full?, min_confidence?, memory?, judge?, format? }` | findings JSON (compact) or markdown table |
+| `unreach.judge` | `{ path?, format? }` | **table by default**: sev, confidence, judge, devil's advocate, next check, security, effort |
+| `unreach.workflow` | `{ path?, max_findings?, triage?, format? }` | verify/edit/validate/remember; `kept_by_judge`, `security_first`, `quick_wins` |
+| `unreach.triage` | `{ path?, max_items?, llm?, format? }` | verdicts for warn findings; packets include the judge brief; model is a *second* devil's advocate |
 | `unreach.plan` | `{ path? }` | ordered deletions/refactors, **no file writes** |
 | `unreach.explain` | `{ id }` | paragraph (heuristic if no key) |
 | `unreach.remember` | `{ id, decision, note?, path? }` | stores a decision in memory |
@@ -197,7 +231,8 @@ optional). No vendor SDKs.
 ## Plugins
 
 Same engine. No second scanner. Every skill teaches the loop
-`scan → workflow → verify → validate → remember`.
+`scan (table) → judge → workflow → verify → validate → remember`.
+Present findings as the markdown table the tools return; do not rewrite them as prose.
 
 ### Claude Code
 

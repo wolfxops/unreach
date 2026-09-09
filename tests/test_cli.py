@@ -63,4 +63,5 @@ def test_plugin_manifests_exist() -> None:
     assert (root / "plugins" / "cursor" / ".cursor-plugin" / "plugin.json").is_file()
     assert (root / "plugins" / "codex" / "README.md").is_file()
     assert (root / "docs" / "index.html").is_file()
+    assert (root / "docs" / "judge.html").is_file()
 

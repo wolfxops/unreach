@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Plugins — Unreach</title>
-  <meta name="description" content="Unreach plugins for Claude Code, Cursor and Codex: thin wrappers around one stdio MCP server with eight tools.">
+  <meta name="description" content="Unreach plugins for Claude Code, Cursor and Codex: thin wrappers around one stdio MCP server. Tabular output by default for the judge.">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -16,6 +16,7 @@
         <a href="cli.html">CLI</a>
         <a href="languages.html">Languages</a>
         <a href="confidence.html">Confidence</a>
+        <a href="judge.html">Judge</a>
         <a href="workflow.html">Workflow</a>
         <a href="memory.html">Memory</a>
         <a href="plugins.html" aria-current="page">Plugins</a>
@@ -28,7 +29,7 @@
   <main class="container page prose">
     <span class="eyebrow reveal">Plugins</span>
     <h1 class="reveal d1">Thin wrappers. One MCP server. No second scanner.</h1>
-    <p class="lead reveal d2">Every plugin teaches the agent the same loop: <code>unreach.scan</code> → <code>unreach.workflow</code> → follow the steps → <code>unreach.remember</code>. Do not guess unused code; do not delete without approval.</p>
+    <p class="lead reveal d2">Every plugin teaches the agent the same loop: <code>unreach.judge</code> (markdown table) → <code>unreach.workflow</code> → follow the steps → <code>unreach.remember</code>. Do not guess unused code; do not rewrite the table as prose; do not delete without approval.</p>
 
     <div class="art reveal d3" style="margin: 28px 0">
       <svg viewBox="0 0 720 200" role="img" aria-label="Three agents connecting to one MCP server">
@@ -84,8 +85,9 @@ args = ["mcp"]</code></pre>
     <div class="table-wrap"><table>
       <thead><tr><th>Tool</th><th>Input</th><th>Output</th></tr></thead>
       <tbody>
-        <tr><td><code>unreach.scan</code></td><td><code>{ path?, lang?, only_new?, full?, min_confidence?, memory? }</code></td><td>Findings with confidence; compact packet by default (full evidence for new findings, one-liners for known ones, acknowledged ones omitted).</td></tr>
-        <tr><td><code>unreach.workflow</code></td><td><code>{ path?, max_findings?, triage? }</code></td><td>Language- and framework-aware verify / edit / validate / remember steps, ordered by triage verdicts, with an <code>llm</code> budget report.</td></tr>
+        <tr><td><code>unreach.scan</code></td><td><code>{ path?, lang?, only_new?, full?, min_confidence?, memory?, judge?, format? }</code></td><td>Findings with confidence; compact JSON by default. Pass <code>format: "table"</code> for the plugin-facing markdown table.</td></tr>
+        <tr><td><code>unreach.judge</code></td><td><code>{ path?, format? }</code></td><td><strong>Table by default.</strong> Prosecution vs devil's advocate, identification, security, effort, next check. Verdicts <code>remove</code> / <code>verify</code> / <code>keep</code>. Deterministic, no LLM.</td></tr>
+        <tr><td><code>unreach.workflow</code></td><td><code>{ path?, max_findings?, triage?, format? }</code></td><td>Language- and framework-aware verify / edit / validate / remember steps. <code>kept_by_judge</code> skipped; <code>security_first</code> first; first verify step is the judge's next check.</td></tr>
         <tr><td><code>unreach.triage</code></td><td><code>{ path?, max_items?, llm? }</code></td><td>Verdicts (<code>likely_dead</code> / <code>verify</code> / <code>keep</code>) for warn findings. One batched model call at most; cached by evidence digest; heuristic without a key.</td></tr>
         <tr><td><code>unreach.plan</code></td><td><code>{ path? }</code></td><td>Ordered steps ranked by confidence. Never writes.</td></tr>
         <tr><td><code>unreach.explain</code></td><td><code>{ id }</code></td><td>One paragraph; model-backed if a key is set.</td></tr>
@@ -97,8 +99,8 @@ args = ["mcp"]</code></pre>
 
     <h2>The loop every skill teaches</h2>
     <ol class="steps">
-      <li><span class="n">1</span><div><h4>Scan, do not guess</h4><p>Call <code>unreach.scan</code>. Read <code>severity</code> and <code>confidence</code>. Block findings are certain; warn findings are ambiguous; notes are leads.</p></div></li>
-      <li><span class="n">2</span><div><h4>Ask for the workflow</h4><p>Call <code>unreach.workflow</code>. Follow the steps in order. Read only the files it names; use the grep patterns it gives; respect <code>budget_hint</code>.</p></div></li>
+      <li><span class="n">1</span><div><h4>Judge, do not guess</h4><p>Call <code>unreach.judge</code>. Show the markdown table as-is. <code>keep</code> means a live path was found (scheduler, entry, flag…); <code>remove</code> + quick win after one grep; <code>remove_first</code> security markers go first.</p></div></li>
+      <li><span class="n">2</span><div><h4>Ask for the workflow</h4><p>Call <code>unreach.workflow</code>. Follow the steps in order. Read only the files it names — the first verify step is the judge's <code>next_check</code>.</p></div></li>
       <li><span class="n">3</span><div><h4>Validate, then propose</h4><p>Run the validation commands for the detected stack. Propose a patch; never delete without the user's explicit approval.</p></div></li>
       <li><span class="n">4</span><div><h4>Remember</h4><p>Record each decision with <code>unreach.remember</code>. The next session starts from that baseline and costs fewer tokens.</p></div></li>
     </ol>

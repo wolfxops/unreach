@@ -155,6 +155,7 @@ nav.primary .gh { border: 1px solid var(--line); background: var(--surface); }
 
 /* pipeline infographic */
 .pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; position: relative; counter-reset: step; }
+.pipeline.cols-5 { grid-template-columns: repeat(5, 1fr); }
 .pipeline .node { position: relative; padding: 0 14px; }
 .pipeline .node .bubble {
   width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 16px;

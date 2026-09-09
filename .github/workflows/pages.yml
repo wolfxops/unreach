@@ -32,6 +32,7 @@ jobs:
           test -f docs/plugins.html
           test -f docs/install.html
           test -f docs/confidence.html
+          test -f docs/judge.html
           test -f docs/workflow.html
           test -f docs/memory.html
           test -f docs/research.html

@@ -16,6 +16,7 @@
         <a href="cli.html">CLI</a>
         <a href="languages.html">Languages</a>
         <a href="confidence.html">Confidence</a>
+        <a href="judge.html">Judge</a>
         <a href="workflow.html" aria-current="page">Workflow</a>
         <a href="memory.html">Memory</a>
         <a href="plugins.html">Plugins</a>
@@ -28,7 +29,7 @@
   <main class="container page prose">
     <span class="eyebrow reveal">Guided dynamic workflow</span>
     <h1 class="reveal d1">Tell the agent what to do, not what to read.</h1>
-    <p class="lead reveal d2"><code>unreach workflow</code> / MCP <code>unreach.workflow</code> turns findings into an ordered checklist shaped by the repository's languages, frameworks and history. It is data an agent executes, not prose it interprets — and it is where the model is used deliberately, not by default.</p>
+    <p class="lead reveal d2"><code>unreach workflow</code> / MCP <code>unreach.workflow</code> turns findings into an ordered checklist shaped by the repository's languages, frameworks and history. The first verify step is the <a href="judge.html">judge's next check</a> — the one artifact that would settle a hidden live path. It is data an agent executes, not prose it interprets — and it is where the model is used deliberately, not by default.</p>
 
     <div class="pipeline reveal d3" style="margin: 40px 0 16px">
       <div class="node"><div class="bubble">1</div><h3>verify</h3><p>Targeted grep and bounded reads. Never "read the repo".</p></div>
@@ -107,8 +108,9 @@
 }</code></pre>
 
     <h2>CLI</h2>
-    <pre><code>unreach workflow [PATH] [--format json|md] [--max 12] [--no-triage] [--no-llm]
-unreach triage   [PATH] [--format json|md] [--max-items 8] [--no-llm]</code></pre>
+    <pre><code>unreach workflow [PATH] [--format json|md|table] [--max 12] [--no-triage] [--no-llm]
+unreach triage   [PATH] [--format json|md|table] [--max-items 8] [--no-llm]
+unreach judge    [PATH] [--format table|md|json]</code></pre>
   </main>
 
   <footer class="site-footer">

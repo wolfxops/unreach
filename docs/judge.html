@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Judge &amp; devil's advocate — Unreach</title>
+  <meta name="description" content="Unreach's deterministic judge layer: prosecution vs named counter-hypotheses with file:line evidence, identification check, security lens, effort estimate, and tabular plugin output.">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html"><svg class="mark" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="#2447f9"/><circle cx="9" cy="14" r="2.4" fill="#fff"/><circle cx="19" cy="9" r="2.4" fill="#fff"/><circle cx="19" cy="19" r="2.4" fill="#ffb4c0"/><path d="M11 13.2l5.6-3.4M11 14.8l5.6 3.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>Unreach</a>
+      <nav class="primary">
+        <a href="install.html">Install</a>
+        <a href="cli.html">CLI</a>
+        <a href="languages.html">Languages</a>
+        <a href="confidence.html">Confidence</a>
+        <a href="judge.html" aria-current="page">Judge</a>
+        <a href="workflow.html">Workflow</a>
+        <a href="memory.html">Memory</a>
+        <a href="plugins.html">Plugins</a>
+        <a href="research.html">Research</a>
+        <a class="gh" href="https://github.com/wolfxops/unreach">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container page prose">
+    <span class="eyebrow reveal">Due diligence, not a hunch</span>
+    <h1 class="reveal d1">Prosecution. Devil's advocate. Then a verdict.</h1>
+    <p class="lead reveal d2">The scanner says “nothing imports this.” That is the prosecution. Before an agent proposes a deletion, a second deterministic layer plays devil's advocate: it checks named counter-hypotheses against real repository artifacts — crontab, Dockerfile, serverless handlers, CI scripts, reflection, feature flags — and returns <code>file:line</code> evidence. The judge combines both sides into <code>remove</code>, <code>verify</code>, or <code>keep</code>, plus the one next check that settles it.</p>
+
+    <div class="pipeline reveal d3" style="margin: 40px 0 16px">
+      <div class="node"><div class="bubble">1</div><h3>Prosecution</h3><p>The scan's graph evidence and confidence score. Offline. No model.</p></div>
+      <div class="node"><div class="bubble">2</div><h3>Devil's advocate</h3><p>30+ named hypotheses checked against artifacts with file:line hits.</p></div>
+      <div class="node"><div class="bubble">3</div><h3>Identification</h3><p>Are we pointing at the right thing? Generic names, barrels, parse failures.</p></div>
+      <div class="node"><div class="bubble">4</div><h3>Verdict</h3><p><code>remove</code> / <code>verify</code> / <code>keep</code>, adjusted confidence, security, effort.</p></div>
+    </div>
+    <p class="muted small reveal">No LLM is involved. The optional <a href="workflow.html">triage</a> step is a <em>second</em> devil's advocate that sees the judge's notes and names anything the artifacts might have missed — still never file bodies, still once, still cached.</p>
+
+    <h2>Why this exists</h2>
+    <p>The most expensive false positive in dead-code cleanup is not a FastAPI route (framework detection already handles that). It is a <em>hidden live path</em>: a nightly job, a Lambda handler string, a Makefile target, a feature flag that is off today. Agents that delete those “unused” files are fast and wrong. The judge is the due-diligence layer that keeps developer velocity high without trading away safety.</p>
+    <div class="grid cols-3">
+      <article class="card">
+        <span class="tag block">remove</span>
+        <h3>Propose the patch</h3>
+        <p>None of the counter-hypotheses held and judged confidence is still ≥ 0.85. One grep, then validate. Trivial cases are tagged <code>quick win</code>.</p>
+      </article>
+      <article class="card">
+        <span class="tag warn">verify</span>
+        <h3>One check settles it</h3>
+        <p>Medium objections, identification caveats, or confidence in the warn band. The <code>next_check</code> names the exact file:line to open. Do not crawl the repo.</p>
+      </article>
+      <article class="card">
+        <span class="tag note">keep</span>
+        <h3>A live path exists</h3>
+        <p>A strong objection (scheduler, container, serverless, CLI, plugin, CI) produced evidence. Record <code>unreach.remember keep</code> if you agree. The finding stays visible so the evidence is reviewable.</p>
+      </article>
+    </div>
+
+    <h2>The fixture, judged</h2>
+    <p><code>unreach judge fixtures/deadapp</code> prints this table (also the default MCP output for <code>unreach.judge</code>, and what plugins render to the user):</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>sev</th><th>confidence</th><th>kind</th><th>target</th><th>judge</th><th>devil's advocate</th><th>next check</th><th>security</th><th>effort</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>block</td><td>0.92</td><td>orphan_file</td><td><code>pkg/legacy_export.py</code></td><td>remove</td><td>none of 28 hypotheses</td><td>One grep, then propose the patch.</td><td><strong>remove_first</strong>: unsafe_deserialization L7</td><td>trivial · ~2m · quick win</td></tr>
+          <tr><td>2</td><td>block</td><td>0.92</td><td>orphan_file</td><td><code>pkg/orphan.py</code></td><td>remove</td><td>none · flag: recently_added_in_git</td><td>One grep, then propose the patch.</td><td>—</td><td>trivial · ~2m · quick win</td></tr>
+          <tr><td>3</td><td>block</td><td>0.88</td><td>unused_export</td><td><code>pkg/exports.py</code> :: <code>dead_symbol</code></td><td>remove</td><td>none · flag: recently_added_in_git</td><td>One grep, then propose the patch.</td><td>—</td><td>trivial · ~2m · quick win</td></tr>
+          <tr><td>4</td><td>warn</td><td>0.58</td><td>unused_export</td><td><code>pkg/hooks.py</code> :: <code>maybe_dead</code></td><td>verify</td><td>none (scan already priced whole-module import)</td><td>Read the definition and grep once.</td><td>—</td><td>trivial · ~2m</td></tr>
+          <tr><td>5</td><td>note</td><td>0.37 <span class="muted">(scan 0.62)</span></td><td>orphan_file</td><td><code>pkg/nightly.py</code></td><td>keep</td><td>scheduled_job @ <code>ops/crontab:2</code></td><td>Open the crontab. If the schedule is live, remember <code>keep</code>.</td><td>—</td><td>trivial · ~5m</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout"><p><strong>Nightly job.</strong> Nothing imports <code>pkg/nightly.py</code>. A naive scanner would call it dead. The devil's advocate found <code>0 2 * * * python -m pkg.nightly</code> in <code>ops/crontab:2</code>, dropped confidence from 0.62 to 0.37, and returned <code>keep</code> with the exact next check. That is the scheduler-job case this layer exists for.</p></div>
+    <div class="callout ok"><p><strong>Security first.</strong> <code>pkg/legacy_export.py</code> is unused <em>and</em> calls <code>pickle.loads</code>. The judge never prints the secret or the payload — only the marker name and line number — and tags it <code>remove_first</code>. Dead risky code is unmonitored attack surface; it goes to the top of the workflow.</p></div>
+
+    <h2>Counter-hypotheses (the devil's advocate)</h2>
+    <p>Each hypothesis has a strength, a confidence penalty, and a next-check template. Evidence is redacted and truncated. Overlap with scan signals (a name already seen in config) halves the judge's own penalty so the same fact is not priced twice.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Hypothesis</th><th>Looks in</th><th>Strength</th><th>Why it matters</th></tr></thead>
+        <tbody>
+          <tr><td><code>explicit_keep_marker</code></td><td><code>unreach: keep</code> / <code>unreach-ignore</code> on the target</td><td>strong</td><td>The author already ruled. Honor it.</td></tr>
+          <tr><td><code>scheduled_job</code></td><td>crontab, celery beat, k8s CronJob, workflow <code>schedule:</code>, systemd timer, sidekiq, whenever</td><td>strong</td><td>Jobs are invoked by a clock, not an import.</td></tr>
+          <tr><td><code>container_or_process_entry</code></td><td>Dockerfile CMD/ENTRYPOINT, Procfile, compose, k8s command, systemd/supervisor</td><td>strong</td><td>The process table is the real entry graph.</td></tr>
+          <tr><td><code>serverless_handler</code></td><td>serverless.yml, SAM, Azure <code>function.json</code>, vercel.json, wrangler.toml, Firebase, Zappa</td><td>strong</td><td>Clouds invoke by handler string.</td></tr>
+          <tr><td><code>cli_entry_point</code></td><td><code>console_scripts</code>, package <code>bin</code>, <code>python -m</code> in scripts/CI</td><td>strong</td><td>Tools are executed, not imported.</td></tr>
+          <tr><td><code>plugin_or_entry_point_group</code></td><td>pyproject entry-points, VS Code contributes, pytest11, ServiceLoader</td><td>strong</td><td>The host discovers by name.</td></tr>
+          <tr><td><code>ci_or_build_invocation</code></td><td>GitHub Actions, Makefile, tox/nox, package.json scripts, Gradle, Rakefile</td><td>strong</td><td>Build and CI run code the graph never sees.</td></tr>
+          <tr><td><code>infrastructure_manifest</code></td><td>Terraform, Helm, CloudFormation, Pulumi, Ansible</td><td>strong</td><td>Deploy-time packaging and invocation.</td></tr>
+          <tr><td><code>dynamic_loading_or_reflection</code></td><td>source next to importlib / getattr / Class.forName / require</td><td>medium</td><td>String-named load is the classic false positive.</td></tr>
+          <tr><td><code>side_effect_import</code></td><td>bare <code>import 'x'</code> / <code>importlib.import_module</code></td><td>medium</td><td>The module runs even if nothing is bound.</td></tr>
+          <tr><td><code>template_reference</code></td><td>Jinja, ERB, Blade, Razor, XAML, HTML event handlers</td><td>medium</td><td>Templates call code by name at render time.</td></tr>
+          <tr><td><code>scheduler_registration_in_file</code></td><td>@Scheduled, celery beat, APScheduler, Hangfire, node-cron</td><td>medium</td><td>Autodiscovery loads the module without an importer.</td></tr>
+          <tr><td><code>event_or_signal_subscriber</code></td><td>Django receivers, Kafka/SQS listeners, socket.io, EventBus</td><td>medium</td><td>Registration at import time still needs a loader.</td></tr>
+          <tr><td><code>registry_pattern_in_file</code></td><td>@Component, ServiceLoader, __init_subclass__, pluggy</td><td>medium</td><td>DI containers resolve by class, not import.</td></tr>
+          <tr><td><code>ide_or_runner_config</code></td><td>.vscode/launch.json, .idea run configs, devcontainer</td><td>medium</td><td>Developers run this directly.</td></tr>
+          <tr><td><code>public_library_surface</code></td><td>published package manifests (not <code>private: true</code>)</td><td>medium</td><td>External consumers the graph cannot see.</td></tr>
+          <tr><td><code>convention_dispatched_name</code></td><td><code>clean_*</code>, <code>getServerSideProps</code>, <code>*Command</code>, <code>lambda_handler</code></td><td>medium</td><td>Frameworks look the name up by convention.</td></tr>
+          <tr><td><code>feature_flag_or_env_gate</code></td><td>LaunchDarkly, Unleash, <code>FEATURE_*</code>, <code>os.environ</code></td><td>medium</td><td>Dormant is not dead.</td></tr>
+          <tr><td><code>platform_or_build_conditional</code></td><td><code>#[cfg]</code>, <code>//go:build</code>, <code>sys.platform</code>, <code>_windows.go</code></td><td>medium</td><td>The other OS still ships.</td></tr>
+          <tr><td><code>migration_or_data_script</code></td><td>alembic, db/migrate, flyway, seeds</td><td>medium</td><td>Tooling loads by directory scan. Never delete applied migrations.</td></tr>
+          <tr><td><code>generated_code</code></td><td><code>DO NOT EDIT</code>, <code>_pb2.py</code>, <code>.g.dart</code></td><td>medium</td><td>Delete the generator input, not the output.</td></tr>
+          <tr><td><code>type_or_contract_definition</code></td><td>Protocol, interface, trait, enum, TypedDict</td><td>medium</td><td>Structural / type-only use is invisible to the graph.</td></tr>
+          <tr><td><code>barrel_star_reexport</code></td><td><code>export * from</code> / <code>from x import *</code></td><td>medium</td><td>Named-use tracking is incomplete.</td></tr>
+          <tr><td><code>executable_script_shebang</code></td><td><code>#!/usr/bin/env python</code></td><td>weak</td><td>Meant to be executed, not imported.</td></tr>
+          <tr><td><code>parses_command_line_arguments</code></td><td>argparse, click, cobra, clap</td><td>weak</td><td>Likely a tool run by hand or automation.</td></tr>
+          <tr><td><code>deprecation_window</code></td><td>@deprecated, Obsolete, “remove in v3”</td><td>weak</td><td>Kept on purpose until the window closes.</td></tr>
+          <tr><td><code>test_only_reference</code></td><td>tests/ only</td><td>weak</td><td>No production caller; decide with the owner.</td></tr>
+          <tr><td><code>work_in_progress_marker</code></td><td>WIP, TODO: wire, placeholder</td><td>info</td><td>Not-yet-wired ≠ abandoned. No penalty; a flag.</td></tr>
+          <tr><td><code>recently_added_in_git</code></td><td><code>git log --diff-filter=A --since=14.days</code></td><td>info</td><td>May simply not be wired up yet.</td></tr>
+          <tr><td><code>documentation_reference</code></td><td>README, docs, notebooks</td><td>info</td><td>Update docs in the same patch.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Identification check</h2>
+    <p>A finding can be “correctly unused” of the wrong thing. Before a <code>remove</code> verdict, the judge asks whether the identifier is trustworthy.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Check</th><th>When it fires</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code>generic_name</code></td><td>Symbol/stem is ≤ 3 characters or in a stop-list (<code>util</code>, <code>index</code>, <code>helper</code>…)</td><td>Token/grep evidence is unreliable; penalty 0.08–0.15.</td></tr>
+          <tr><td><code>stem_collision</code></td><td>Two source files share the same stem</td><td>A crontab naming <code>worker</code> may mean a different file.</td></tr>
+          <tr><td><code>star_reexports_present</code></td><td>The repo uses <code>export *</code> / <code>import *</code></td><td>Named-use tracking is incomplete.</td></tr>
+          <tr><td><code>graph_incomplete_parse_failures</code></td><td>Source files failed to parse</td><td>Their imports are missing from the graph.</td></tr>
+          <tr><td><code>unresolved_workspace_imports</code></td><td>JS/TS monorepo</td><td><code>@scope/pkg</code> imports are not resolved to files.</td></tr>
+          <tr><td><code>name_precision_graph</code></td><td>Java, C#, Swift, …</td><td>Info only; confidence is already capped below <code>block</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Corner cases, due diligence</h2>
+    <p>These are the cases that produce the worst incidents when a scanner (or an agent) is believed blindly. Each has a named hypothesis and a required human check — never an automatic deletion.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Corner case</th><th>Hypothesis</th><th>Safe action</th></tr></thead>
+        <tbody>
+          <tr><td>Nightly / cron / celery beat / k8s CronJob / GitHub <code>schedule:</code></td><td><code>scheduled_job</code></td><td>If the schedule is live, <code>remember keep</code>. If it is disabled, remove the schedule entry <em>and</em> the code in the same patch.</td></tr>
+          <tr><td>Dockerfile <code>CMD</code>, Procfile, systemd unit</td><td><code>container_or_process_entry</code></td><td>Confirm the process is still deployed.</td></tr>
+          <tr><td>Lambda / Cloud Functions / Azure Functions handler string</td><td><code>serverless_handler</code></td><td>Open the manifest; platforms invoke by string.</td></tr>
+          <tr><td><code>python -m pkg.job</code> in a Makefile or workflow</td><td><code>cli_entry_point</code> / <code>ci_or_build_invocation</code></td><td>Check whether that step still runs in CI or on a box.</td></tr>
+          <tr><td>Feature flag off in this environment</td><td><code>feature_flag_or_env_gate</code></td><td>Dormant ≠ dead. Ask whether the flag can still be turned on.</td></tr>
+          <tr><td><code>sys.platform == 'win32'</code> file on a Linux CI runner</td><td><code>platform_or_build_conditional</code></td><td>Confirm the other platform is still shipped.</td></tr>
+          <tr><td>Protobuf / ORM / Flutter generated file</td><td><code>generated_code</code></td><td>Remove the generator input; the next generate undoes an output delete.</td></tr>
+          <tr><td>Applied Alembic / Rails / Flyway migration</td><td><code>migration_or_data_script</code></td><td>Never delete. History is load-bearing.</td></tr>
+          <tr><td>Published library export with no in-repo caller</td><td><code>public_library_surface</code></td><td>Deprecate first; the graph cannot see PyPI/npm consumers.</td></tr>
+          <tr><td><code>getServerSideProps</code> / <code>*Command</code> / <code>clean_&lt;field&gt;</code></td><td><code>convention_dispatched_name</code></td><td>Frameworks look these up by name.</td></tr>
+          <tr><td><code>export * from './lib'</code></td><td><code>barrel_star_reexport</code></td><td>Grep the barrel's consumers, not the defining file.</td></tr>
+          <tr><td>WIP / “not yet wired” / added this week</td><td>info flags</td><td>Ask the author. No confidence penalty; do not auto-promote to <code>remove</code>.</td></tr>
+          <tr><td><code># unreach: keep</code> on the symbol</td><td><code>explicit_keep_marker</code></td><td>Honor it; <code>remember keep</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Security lens</h2>
+    <p>Dead code is not just clutter. Unused endpoints, leftover <code>eval</code>, <code>pickle.loads</code>, <code>verify=False</code>, and secret-like literals are <em>unmonitored attack surface</em> — they are not in the live path, so they are not in the on-call dashboard either. The judge scans the finding's definition (or the whole orphan file) for markers and reports <strong>line numbers only</strong>. Values are redacted by the same patterns used everywhere else (<code>sk-</code>, <code>AKIA</code>, <code>ghp_</code>, PEM keys, JWT-shaped tokens, <code>password = "…"</code>).</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Marker</th><th>Meaning</th><th>Priority</th></tr></thead>
+        <tbody>
+          <tr><td><code>code_execution</code></td><td><code>eval</code> / <code>exec</code> / <code>os.system</code> / <code>child_process</code></td><td>review / remove_first if verdict is remove</td></tr>
+          <tr><td><code>unsafe_deserialization</code></td><td><code>pickle.loads</code>, <code>yaml.load</code>, <code>ObjectInputStream</code>, <code>unserialize</code></td><td>remove_first</td></tr>
+          <tr><td><code>tls_or_verification_disabled</code></td><td><code>verify=False</code>, <code>InsecureSkipVerify</code>, <code>NODE_TLS_REJECT_UNAUTHORIZED</code></td><td>remove_first</td></tr>
+          <tr><td><code>network_exposure</code></td><td>route / controller / <code>listen(</code> in unused code</td><td>remove_first — dead endpoint</td></tr>
+          <tr><td><code>secret_like_literal</code></td><td>API-key / PEM / JWT shape (value never shown)</td><td>remove_first</td></tr>
+          <tr><td><code>debug_or_permissive_config</code></td><td><code>DEBUG=True</code>, CORS <code>*</code>, <code>AllowAny</code>, <code>chmod 777</code></td><td>review</td></tr>
+          <tr><td><code>sql_string_building</code> / <code>dangerous_html</code> / <code>memory_unsafe</code> / <code>path_or_file_exposure</code></td><td>classic injection / XSS / memory / path bugs</td><td>review</td></tr>
+          <tr><td><code>supply_chain_surface</code></td><td>unused dependency still in the lockfile/SBOM</td><td>review — inherits its CVEs</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Workflows surface <code>security_first</code> findings before anything else. That is the secure-code mechanism: the cheapest security win in a cleanup backlog is deleting code that is both unused and risky, after validation, with explicit approval.</p>
+
+    <h2>Developer velocity</h2>
+    <p>Due diligence that costs an hour per finding will not be used. The judge is built so the <em>cheap</em> cases stay cheap:</p>
+    <ul>
+      <li><strong>Quick wins</strong> — <code>remove</code> + trivial size (≤ 60 lines, ≤ 1 objection) get a ~2 minute estimate. Agents are told to take those first.</li>
+      <li><strong>One next check</strong> — never “read the repo”. The strongest objection names a file:line; that is the only extra read.</li>
+      <li><strong>Keep is skip</strong> — findings the judge ruled <code>keep</code> are listed once in the workflow and omitted from verify/edit. Re-arguing them is the most common token sink.</li>
+      <li><strong>Tabular plugin output</strong> — Claude Code, Cursor and Codex render GitHub-flavoured markdown tables natively. The plugin loop is: call <code>unreach.judge</code> (or <code>unreach.scan</code> with <code>format: "table"</code>) and show the table as-is. No prose rewrite, no second crawl.</li>
+      <li><strong>Never deletes</strong> — a <code>remove</code> verdict is permission to <em>propose</em> a patch after validation, not to write the filesystem.</li>
+    </ul>
+    <p>Effort is <code>trivial</code> / <code>small</code> / <code>large</code> from line count of the target plus the number of sustained objections. It is a planning hint, not a promise.</p>
+
+    <h2>CLI and MCP</h2>
+    <pre><code>unreach judge  [PATH] [--format table|md|json] [--no-memory] [--no-judge]
+unreach scan   [PATH] [--format table|md|json|sarif]
+unreach plan   [PATH] [--format table|md|json]
+unreach workflow [PATH] [--format table|md|json]</code></pre>
+    <p><code>table</code> is a markdown table: <code>sev · confidence · kind · target · judge · devil's advocate · next check · security · effort</code>. MCP <code>unreach.judge</code> defaults to that table. <code>md</code> adds the case-file write-up (prosecution, defense, identification, security, next check) under the table. JSON is the machine envelope. Scan still defaults to markdown for humans and JSON for MCP; pass <code>format: "table"</code> when the agent is presenting to a user.</p>
+    <p>Pass <code>--no-judge</code> (or MCP <code>judge: false</code>) to see raw scan confidence. The threshold <code>--min-confidence</code> applies to the <em>scan</em> score so a <code>keep</code> verdict cannot hide the finding — the evidence is the point.</p>
+
+    <h2>What this layer will not do</h2>
+    <ul>
+      <li>It will not call a model. Detection and judgement are deterministic; the model is a later, optional second opinion on <code>warn</code> findings only.</li>
+      <li>It will not delete, rewrite, or open a pull request.</li>
+      <li>It will not print secret values, file bodies, or more than a 110-character redacted snippet per evidence line.</li>
+      <li>It will not pretend a name-precision language is certain. Identification records that cap; verdicts stay at <code>verify</code>/<code>keep</code>.</li>
+    </ul>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div>Apache-2.0 · Vivek Singh · <a href="https://x.com/wolfxops">wolfxops</a> · Pune</div>
+      <div class="house"><span class="tag"><strong>Cosen</strong>&nbsp;runtime cost</span><span class="tag"><strong>Quorum</strong>&nbsp;pre-merge review</span><span class="tag brand"><strong>Unreach</strong>&nbsp;unused code in the editor</span></div>
+    </div>
+  </footer>
+  <script src="assets/site.js" defer></script>
+</body>
+</html>

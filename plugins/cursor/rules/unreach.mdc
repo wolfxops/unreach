@@ -31,4 +31,4 @@ globs:
 alwaysApply: false
 ---
 
-Do not guess unused or orphan code. Call MCP `unreach.scan`, then `unreach.workflow`, and follow its steps in order, reading only the files it names. Only `block` findings (confidence ≥ 0.85) are actionable without deeper verification; `warn` findings carry a triage verdict and signals to check first. Never delete files unless the user explicitly approves after the validate steps pass. Record each reviewed finding with `unreach.remember`.
+Do not guess unused or orphan code. Call MCP `unreach.judge` (or `unreach.scan` with `format: "table"`) and present the markdown table as-is. Then `unreach.workflow`, and follow its steps in order, reading only the files it names. Judge verdicts: `remove` (propose after validation), `verify` (open the cited file:line), `keep` (scheduler / container / serverless / CI / flag / keep-marker — skip and `remember`). Security `remove_first` goes first. Never delete files unless the user explicitly approves after the validate steps pass. Never print secret values. Record each reviewed finding with `unreach.remember`.
